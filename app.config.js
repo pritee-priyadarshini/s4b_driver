@@ -18,7 +18,7 @@ export default {
 
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.priteepriyadarshini.savefulbusiness",
+      bundleIdentifier: "com.s4b.driver",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -30,7 +30,7 @@ export default {
     },
 
     android: {
-      package: "com.priteepriyadarshini.savefulbusiness",
+      package: "com.s4b.driver",
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -62,9 +62,10 @@ export default {
       ],
     ],
 
-    extra: {
-      googleMapsApiKey:
-        process.env.GOOGLE_MAPS_API_KEY,
-    },
+    "extra": {
+      "eas": {
+        "projectId": "27e91e36-34b9-442d-bc44-7745df8fb81e"
+      }
+    }
   },
 };

@@ -19,13 +19,51 @@ import { Card } from '../components/Card';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../store/AuthContext';
 
+type SectionKey =
+  | 'personal'
+  | 'contact'
+  | 'driver';
+
+type VehicleType =
+  | 'Bike'
+  | 'Scooter'
+  | 'Car'
+  | 'Mini Van'
+  | 'Mini Truck';
+
+type ProfileFormData = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobile: string;
+  password: string;
+  license: string;
+  vehicle: VehicleType;
+  availability: string;
+};
+
+const PROFILE_LINKS = [
+  {
+    label: 'Privacy Policy',
+    url: 'https://www.saveful.com/privacy-policy',
+  },
+  {
+    label: 'Terms of Service',
+    url: 'https://www.saveful.com/app-terms-conditions',
+  },
+  {
+    label: 'FAQ',
+    url: 'https://www.saveful.com/faq',
+  },
+] as const;
+
 
 export function ProfileScreen() {
   const { logout } = useAuth();
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<SectionKey | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [vehicleOpen, setVehicleOpen] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProfileFormData>({
     firstName: 'John',
     lastName: 'Doe',
     email: 'driver@email.com',
@@ -37,20 +75,43 @@ export function ProfileScreen() {
   });
 
   const handleSave = () => {
-    console.log('Saving data:', formData);
+
+    if (!formData.mobile.trim()) {
+      Alert.alert('Validation', 'Mobile number is required.');
+      return;
+    }
+
+    if (formData.password.length > 0 && formData.password.length < 6) {
+      Alert.alert('Validation', 'Password must be at least 6 characters.');
+      return;
+    }
+
     Alert.alert('Success', 'Profile updated successfully');
   };
 
-  const updateField = (key: string, value: string) => {
+  const updateField = <K extends keyof ProfileFormData>(
+    key: K,
+    value: ProfileFormData[K]
+  ) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const toggle = (key: string) => {
+  const toggle = (key: SectionKey) => {
     setOpenSection(openSection === key ? null : key);
   };
 
-  const openLink = (url: string) => {
-    Linking.openURL(url);
+  const openLink = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('Error', 'Cannot open this link.');
+        return;
+      }
+      await Linking.openURL(url);
+
+    } catch {
+      Alert.alert('Error', 'Something went wrong.');
+    }
   };
 
   const handleLogout = () => {
@@ -84,7 +145,11 @@ export function ProfileScreen() {
 
   return (
     <Screen backgroundColor={palette.creme}>
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: spacing.lg }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
 
         {/* HEADER */}
         <View style={styles.header}>
@@ -106,7 +171,7 @@ export function ProfileScreen() {
 
             <Pressable style={styles.profileCircle}>
               <AppText variant='h5'>
-                {formData.firstName[0]}
+                {formData.firstName?.charAt(0) || 'D'}
               </AppText>
             </Pressable>
           </View>
@@ -135,7 +200,13 @@ export function ProfileScreen() {
         <View style={styles.content}>
 
           {/* ACCORDIONS */}
-          {['personal', 'contact', 'driver'].map((key) => (
+          {(
+            [
+              'personal',
+              'contact',
+              'driver',
+            ] as SectionKey[]
+          ).map((key) => (
             <View key={key}>
               <Pressable
                 style={styles.accordionHeader}
@@ -179,7 +250,9 @@ export function ProfileScreen() {
                           label="Password"
                           value={formData.password}
                           secureTextEntry={!showPassword}
-                          onChangeText={(v) => updateField('password', v)}
+                          onChangeText={(v) =>
+                            updateField('password', v)
+                          }
                         />
 
                         <Pressable
@@ -218,7 +291,15 @@ export function ProfileScreen() {
                       </View>
                       {vehicleOpen && (
                         <View style={styles.dropdownMenu}>
-                          {['Bike', 'Scooter', 'Car', 'Mini Van', 'Mini Truck'].map((v) => (
+                          {(
+                            [
+                              'Bike',
+                              'Scooter',
+                              'Car',
+                              'Mini Van',
+                              'Mini Truck',
+                            ] as VehicleType[]
+                          ).map((v) => (
                             <Pressable
                               key={v}
                               style={styles.dropdownItem}
@@ -247,13 +328,9 @@ export function ProfileScreen() {
           ))}
 
           {/* LINKS */}
-          {[
-            { label: 'Privacy Policy', url: 'https://www.saveful.com/privacy-policy' },
-            { label: 'Terms of Service', url: 'https://www.saveful.com/app-terms-conditions' },
-            { label: 'FAQ', url: 'https://www.saveful.com/faq' },
-          ].map((item, i) => (
+          {PROFILE_LINKS.map((item) => (
             <Pressable
-              key={i}
+              key={item.label}
               style={styles.linkRow}
               onPress={() => openLink(item.url)}
             >

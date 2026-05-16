@@ -29,7 +29,7 @@ type PickupItem = {
 
 type Props = NativeStackScreenProps< RootStackParamList, "PickupConfirm">;
 export function PickupConfirmScreen({ route, navigation }: Props) {
-    const { pickup} = route.params;
+    const { pickup, onConfirm} = route.params;
 
     const [items, setItems] = useState<PickupItem[]>(
         pickup.items.map((i: PickupItem) => ({ ...i }))
@@ -217,7 +217,7 @@ export function PickupConfirmScreen({ route, navigation }: Props) {
                         label="Confirm Pickup"
                         style={styles.confirmBtn}
                         onPress={() => {
-                            //onConfirm?.(pickup.id);
+                            onConfirm?.(pickup.id);
                             navigation.goBack();
                         }}
                     />

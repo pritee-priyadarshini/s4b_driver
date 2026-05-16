@@ -1,195 +1,558 @@
 import React, { useMemo } from 'react';
+
 import {
   View,
   StyleSheet,
   FlatList,
   ImageBackground,
+  TouchableOpacity,
 } from 'react-native';
+
+import { Ionicons } from '@expo/vector-icons';
+
+import { NativeStackScreenProps, } from '@react-navigation/native-stack';
+
+import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
-import { Screen} from '../components/Screen';
+
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 
+import {
+  MainTabParamList,
+  RootStackParamList,
+} from '../navigation/types';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { CompositeScreenProps } from '@react-navigation/native';
 
+type Props =
+  CompositeScreenProps<
+    BottomTabScreenProps<MainTabParamList, 'History'>,
+    NativeStackScreenProps<RootStackParamList>
+  >;
 
 type HistoryItem = {
   id: string;
-  title: string;
-  address: string;
-  date: string;
-  time: string;
-  items: { name: string; qty: number }[];
-  rating: number;
+  orderId: string;
+  status:
+  | 'Assigned'
+  | 'Picked'
+  | 'Delivered';
+  restaurant: {
+    name: string;
+    address: string;
+  };
+  charity: {
+    name: string;
+    address: string;
+  };
+  assignedDate: string;
+  assignedTime: string;
+  deliveredDate: string;
+  deliveredTime: string;
+  driverRating: number;
+  restaurantRating: number;
+  items: {
+    name: string;
+    qty: number;
+  }[];
 };
 
-/* MOCK DATA */
 const mockHistory: HistoryItem[] = [
   {
     id: '1',
-    title: 'Pizza Hut',
-    address: 'MG Road, Bangalore',
-    date: '12/04/26',
-    time: '2:00 PM',
+    orderId: '#S4B-1024',
+
+    status: 'Delivered',
+
+    restaurant: {
+      name: 'Pizza Hut',
+      address: 'MG Road, Bangalore',
+    },
+
+    charity: {
+      name: 'Hope Foundation',
+      address: 'Indiranagar, Bangalore',
+    },
+
+    assignedDate: '12 Apr 2026',
+    assignedTime: '02:00 PM',
+
+    deliveredDate: '12 Apr 2026',
+    deliveredTime: '04:30 PM',
+
+    driverRating: 4,
+    restaurantRating: 5,
+
     items: [
-      { name: 'Bread', qty: 5 },
-      { name: 'Rice', qty: 10 },
+      {
+        name: 'Bread',
+        qty: 5,
+      },
+      {
+        name: 'Rice',
+        qty: 10,
+      },
     ],
-    rating: 4,
   },
+
   {
     id: '2',
-    title: 'Red Dragon',
-    address: 'Marathahalli',
-    date: '11/04/26',
-    time: '5:00 PM',
+    orderId: '#S4B-1041',
+
+    status: 'Picked',
+
+    restaurant: {
+      name: 'Red Dragon',
+      address: 'Marathahalli',
+    },
+
+    charity: {
+      name: 'Smile Trust',
+      address: 'Whitefield',
+    },
+
+    assignedDate: '11 Apr 2026',
+    assignedTime: '01:30 PM',
+
+    deliveredDate: '11 Apr 2026',
+    deliveredTime: '05:00 PM',
+
+    driverRating: 5,
+    restaurantRating: 4,
+
     items: [
-      { name: 'Cooked Food', qty: 15 },
+      {
+        name: 'Cooked Food',
+        qty: 15,
+      },
     ],
-    rating: 5,
   },
 ];
 
-export function HistoryScreen() {
-  const totalCollections = mockHistory.length;
+export function HistoryScreen({
+  navigation,
+}: Props) {
 
-  const renderItem = ({ item }: { item: HistoryItem }) => {
-    const totalQty = item.items.reduce(
-      (sum, i) => sum + i.qty,
-      0
-    );
+  const todayOrders = useMemo(() => {
+    return mockHistory.filter(
+      (item) =>
+        item.assignedDate ===
+        '12 Apr 2026'
+    ).length;
+  }, []);
+
+  const statusColor = (
+    status: HistoryItem['status']
+  ) => {
+    switch (status) {
+      case 'Assigned':
+        return palette.orange;
+      case 'Picked':
+        return palette.primary;
+      case 'Delivered':
+        return palette.success;
+      default:
+        return palette.stone;
+    }
+  };
+
+  const renderItem = ({
+    item,
+  }: {
+    item: HistoryItem;
+  }) => {
+
+    const totalQty =
+      item.items.reduce(
+        (sum, current) =>
+          sum + current.qty,
+        0
+      );
 
     return (
-      <View style={styles.card}>
-        <AppText variant="bodyBold">{item.title}</AppText>
-        <AppText variant="bodySmall">📍 {item.address}</AppText>
+      <View style={styles.orderCard}>
+        {/* TOP */}
+        <View style={styles.orderTop}>
+          <View>
+            <AppText variant="caption" style={styles.orderLabel} >
+              ORDER ID
+            </AppText>
 
-        <View style={styles.rowBetween}>
-          <AppText variant="label">Date: {item.date}</AppText>
-          <AppText variant="label">Time: {item.time}</AppText>
-        </View>
+            <AppText variant="h6">
+              {item.orderId}
+            </AppText>
 
-        <View>
-          <AppText variant="label">Items Collected</AppText>
-
-          {item.items.map((i, index) => (
-            <View key={index} style={styles.rowBetween}>
-              <AppText variant="bodySmall">{i.name}</AppText>
-              <AppText variant="bodySmall">{i.qty} kg</AppText>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.rowBetween}>
-          <AppText variant="bodyBold">Total</AppText>
-          <AppText variant="bodyBold">{totalQty} kg</AppText>
-        </View>
-
-        <View>
-          <AppText variant="label">Your Rating</AppText>
-
-          <View style={styles.ratingRow}>
-            {[1, 2, 3, 4, 5].map((r) => (
-              <AppText 
-                key={r}
-                style={[
-                  styles.tomato,
-                  { opacity: r <= item.rating ? 1 : 0.3 },
-                ]}
-              >
-                🍅
-              </AppText>
-            ))}
           </View>
+
+          <View
+            style={[
+              styles.statusPill,
+              {
+                backgroundColor:
+                  statusColor(item.status),
+              },
+            ]}
+          >
+            <AppText
+              variant="label"
+              style={{
+                color:
+                  palette.white,
+              }}
+            >
+              {item.status}
+            </AppText>
+          </View>
+
+        </View>
+
+        {/* RESTAURANT */}
+        <View style={styles.restaurantRow}>
+          <View style={styles.restaurantIcon}>
+            <Ionicons
+              name="restaurant-outline"
+              size={20}
+              color={palette.primary}
+            />
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <AppText variant="bodyBold"  >
+              {item.restaurant.name}
+            </AppText>
+
+            <AppText variant="bodySmall" style={styles.address}  >
+              📍{' '} {item.restaurant.address}
+            </AppText>
+          </View>
+        </View>
+
+        {/* METRICS */}
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <AppText variant="caption" style={styles.metricLabel}  >
+              ITEMS
+            </AppText>
+
+            <AppText variant="bodyBold">
+              {item.items.length}
+            </AppText>
+          </View>
+
+          <View style={styles.metricCard}>
+            <AppText variant="caption" style={styles.metricLabel}  >
+              QUANTITY
+            </AppText>
+
+            <AppText variant="bodyBold">
+              {totalQty} kg
+            </AppText>
+          </View>
+
+          <View style={styles.metricCard}>
+            <AppText variant="caption" style={styles.metricLabel} >
+              DELIVERY
+            </AppText>
+
+            <AppText variant="bodyBold">
+              Done
+            </AppText>
+          </View>
+        </View>
+
+        {/* BOTTOM */}
+
+        <View style={styles.bottomRow}>
+          <View>
+            <AppText variant="caption" style={styles.dateLabel} >
+              Delivered On
+            </AppText>
+
+            <AppText variant="bodySmall" >
+              {item.deliveredDate}{' '}•{' '} {item.deliveredTime}
+            </AppText>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.detailsBtn}
+            onPress={() =>
+              navigation.navigate(
+                'OrderDetails',
+                {
+                  order: item,
+                }
+              )
+            }
+          >
+
+            <AppText variant="label" style={{ color: palette.primary, }}  >
+              Details
+            </AppText>
+
+            <Ionicons
+              name="arrow-forward"
+              size={16}
+              color={palette.primary}
+            />
+          </TouchableOpacity>
         </View>
       </View>
     );
   };
 
   return (
-    <Screen scrollable={false} backgroundColor={palette.creme}>
+    <Screen
+      scrollable={false}
+      backgroundColor={palette.creme}
+    >
+
       <FlatList
         data={mockHistory}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: spacing.xxl,
+        }}
         ListHeaderComponent={
           <>
-            {/* HEADER */}
+            {/* HERO */}
             <ImageBackground
               source={require('../../assets/placeholder/feed-bg.png')}
               style={styles.headerBg}
             >
-              <AppText variant="h4" style={styles.headerText}> Pickup History </AppText>
+              <View style={styles.headerOverlay} >
+                <AppText variant="h3" style={styles.headerText}  >
+                  All Orders
+                </AppText>
+
+                <AppText variant="bodyLarge" style={styles.headerSubtext} >
+                  Track all completed and active deliveries
+                </AppText>
+              </View>
             </ImageBackground>
 
-            <View style={styles.summaryCard}>
-              <AppText variant="subheading">
-                Total Collections
-              </AppText>
+            {/* SUMMARY */}
+            <View style={styles.summaryWrapper}   >
+              <View style={styles.summaryCard}  >
+                <View style={styles.summaryBlock}  >
+                  <AppText variant="caption" style={styles.summaryLabel}  >
+                    TODAY
+                  </AppText>
 
-              <View style={styles.countPill}>
-                <AppText variant="subheading" style={{ color: palette.white }}>
-                  {totalCollections}
-                </AppText>
+                  <AppText variant="h4" >
+                    {todayOrders}
+                  </AppText>
+
+                  <AppText variant="bodySmall">
+                    Orders
+                  </AppText>
+                </View>
+
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryBlock}>
+                  <AppText variant="caption" style={styles.summaryLabel}  >
+                    TOTAL
+                  </AppText>
+
+                  <AppText variant="h4" >
+                    {mockHistory.length}
+                  </AppText>
+
+                  <AppText variant="bodySmall" >
+                    Collections
+                  </AppText>
+                </View>
               </View>
             </View>
           </>
         }
-        contentContainerStyle={{ paddingBottom: spacing.lg }}
       />
+
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+
   headerBg: {
-    height: 140,
+    height: 180,
+  },
+
+  headerOverlay: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: spacing.xl,
   },
 
   headerText: {
     color: palette.white,
   },
 
-  summaryCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    margin: spacing.md,
-  },
-
-  countPill: {
-    backgroundColor: palette.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-
-  card: {
-    backgroundColor: palette.radish,
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    padding: spacing.md,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    gap: spacing.sm,
-  },
-
-  rowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-
-  ratingRow: {
-    flexDirection: 'row',
+  headerSubtext: {
+    color: palette.white,
+    opacity: 0.9,
     marginTop: spacing.xs,
   },
 
-  tomato: {
-    fontSize: 28,
-    lineHeight:30,
-    marginRight: 4,
+  summaryWrapper: {
+    marginTop: -40,
+    marginHorizontal:
+      spacing.md,
+    marginBottom: spacing.md,
+  },
+
+  summaryCard: {
+    backgroundColor:
+      palette.white,
+    borderRadius: 28,
+    paddingVertical:
+      spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor:
+      palette.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    elevation: 4,
+  },
+
+  summaryBlock: {
+    flex: 1,
+    alignItems: 'center',
+  },
+
+  summaryDivider: {
+    width: 1,
+    height: 70,
+    backgroundColor:
+      palette.border,
+  },
+
+  summaryLabel: {
+    color: palette.stone,
+    marginBottom: spacing.xs,
+    letterSpacing: 1,
+  },
+
+  orderCard: {
+    backgroundColor:
+      palette.white,
+    marginHorizontal:
+      spacing.md,
+    marginBottom:
+      spacing.md,
+    borderRadius: 24,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor:
+      palette.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    elevation: 3,
+  },
+
+  orderTop: {
+    flexDirection: 'row',
+    justifyContent:
+      'space-between',
+    alignItems: 'center',
+  },
+
+  orderLabel: {
+    color: palette.stone,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+
+  statusPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 30,
+  },
+
+  restaurantRow: {
+    flexDirection: 'row',
+    marginTop: spacing.lg,
+    alignItems: 'center',
+  },
+
+  restaurantIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor:
+      palette.radish,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+
+  address: {
+    marginTop: 2,
+    color: palette.stone,
+  },
+
+  metricsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+
+  metricCard: {
+    flex: 1,
+    backgroundColor:
+      palette.radish,
+    borderRadius: 18,
+    paddingVertical:
+      spacing.md,
+    alignItems: 'center',
+  },
+
+  metricLabel: {
+    color: palette.stone,
+    marginBottom: 6,
+  },
+
+  bottomRow: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor:
+      palette.border,
+    flexDirection: 'row',
+    justifyContent:
+      'space-between',
+    alignItems: 'center',
+  },
+
+  dateLabel: {
+    color: palette.stone,
+    marginBottom: 4,
+  },
+
+  detailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor:
+      palette.radish,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 30,
+    gap: 6,
   },
 });

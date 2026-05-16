@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
     View,
     FlatList,
@@ -11,15 +11,16 @@ import {
     Animated,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
-import {Screen} from '../components/Screen';
+import { Screen } from '../components/Screen';
 
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,6 +31,13 @@ type DeliveryStatus =
     | 'Picked'
     | 'Verified'
     | 'Completed';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+type PickupItem = {
+    name: string;
+    qty: number;
+};
 
 const mockPickups = [
     {
@@ -86,16 +94,15 @@ const mockPickups = [
 ];
 
 export function DashboardScreen() {
-    const navigation = useNavigation<any>();
+    const navigation = useNavigation<NavigationProp>();
     const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
     const [data, setData] = useState(mockPickups);
-    const [selectedItems, setSelectedItems] = useState<any[]>([]);
+    const [selectedItems, setSelectedItems] = useState<PickupItem[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [sharing, setSharing] = useState<string | null>(null);
     const [isAvailable, setIsAvailable] = useState(true);
-
-    const translateX = useRef(new Animated.Value(isAvailable ? 1 : 0)).current;
+    const [confirmedPickupId, setConfirmedPickupId] = useState<string | null>(null);
 
     const totalQty = useMemo(() => {
         return selectedItems.reduce((sum, item) => sum + (item.qty || 0), 0);
@@ -131,6 +138,16 @@ export function DashboardScreen() {
 
         return () => clearTimeout(timer);
     }, [mapReady, data]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (confirmedPickupId) {
+                updateStatus(confirmedPickupId, 'Verified');
+                setConfirmedPickupId(null);
+            }
+
+        }, [confirmedPickupId])
+    );
 
     const statusFlow: DeliveryStatus[] = [
         'Assigned',
@@ -196,7 +213,7 @@ export function DashboardScreen() {
         return map;
     }, [sortedData]);
 
-    const renderItem = ({ item }: any) => (
+    const renderItem = ({ item }: { item: typeof mockPickups[number]; }) => (
         <View style={styles.card}>
             {/* TOP */}
             <View style={styles.rowBetween}>
@@ -286,21 +303,23 @@ export function DashboardScreen() {
                         onPress={() => setActiveId(item.id)}
                     />
                 ) : item.status !== 'Completed' ? (
-                        <Button
-                            label={getNextStatus(item.status) || 'Done'}
-                            style={styles.collectBtn}
-                            onPress={() => {
-                                const next = getNextStatus(item.status);
-                                if (next === 'Picked') {
-                                    navigation.navigate('PickupConfirm', {
-                                        pickup: item,
-                                        onConfirm: (id: string) => { updateStatus(id, 'Verified'); },
-                                    });
-                                } else if (next) {
-                                    updateStatus(item.id, next);
-                                }
-                            }}
-                        />
+                    <Button
+                        label={getNextStatus(item.status) || 'Done'}
+                        style={styles.collectBtn}
+                        onPress={() => {
+                            const next = getNextStatus(item.status);
+                            if (next === 'Picked') {
+                                navigation.navigate('PickupConfirm', {
+                                    pickup: item,
+                                    onConfirm: (id: string) => {
+                                        updateStatus(id, 'Verified');
+                                    },
+                                });
+                            } else if (next) {
+                                updateStatus(item.id, next);
+                            }
+                        }}
+                    />
                 ) : null}
             </View>
 
@@ -344,12 +363,6 @@ export function DashboardScreen() {
                     onPress={() => {
                         const next = !isAvailable;
                         setIsAvailable(next);
-
-                        Animated.timing(translateX, {
-                            toValue: next ? 1 : 0,
-                            duration: 300,
-                            useNativeDriver: true,
-                        }).start();
                     }}
                 >
                     <AppText variant='label'
@@ -407,7 +420,6 @@ export function DashboardScreen() {
                 <MapView
                     ref={mapRef}
                     style={{ flex: 1 }}
-                    liteMode={true}
                     initialRegion={{
                         latitude: 12.9716,
                         longitude: 77.5946,
@@ -468,6 +480,7 @@ export function DashboardScreen() {
                 ) : (
                     <FlatList
                         data={[{ key: 'map' }]}
+                        keyExtractor={(item) => item.key}
                         renderItem={() => (
                             <>
                                 <Header />
@@ -479,7 +492,13 @@ export function DashboardScreen() {
             </View>
 
             {/* MODAL */}
-            <Modal visible={modalVisible} transparent animationType="fade">
+            <Modal
+                visible={modalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() =>
+                    setModalVisible(false)
+                }>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalBox}>
                         <AppText

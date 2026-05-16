@@ -19,6 +19,7 @@ import { AppText } from "../components/AppText";
 import { InputField } from "../components/InputField";
 
 import { colors } from "../components/ui";
+import { useAuth } from "../store/AuthContext";
 
 const { width, height } = Dimensions.get("window");
 
@@ -30,11 +31,9 @@ const normalize = (size: number) => {
   return Math.round(size * scale);
 };
 
-export function LoginScreen({
-  onLogin,
-}: {
-  onLogin: (driver: Driver) => void;
-}) {
+export function LoginScreen() {
+  const { login } = useAuth();
+
   const [email, setEmail] = useState("driver.raju@seva.org");
   const [password, setPassword] = useState("seva123");
 
@@ -49,7 +48,7 @@ export function LoginScreen({
       const match = credentials.find(
         (credential) =>
           credential.email.toLowerCase() ===
-            email.trim().toLowerCase() &&
+          email.trim().toLowerCase() &&
           credential.password === password
       );
 
@@ -62,7 +61,10 @@ export function LoginScreen({
         return;
       }
 
-      onLogin(driver);
+      await login(driver, "mock-access-token");
+    } catch (error) {
+      console.log( "LOGIN SCREEN ERROR", error );
+      setError( "Something went wrong.");
     } finally {
       setLoading(false);
     }

@@ -1,9 +1,17 @@
+import { HistoryOrder } from "../types/history";
+
 export type RootStackParamList = {
+  Auth: undefined;
   MainTabs: undefined;
 
   PickupConfirm: {
     pickup: any;
+    onConfirm?: (id: string) => void;
   };
+
+  OrderDetails: {
+  order: HistoryOrder;
+};
 };
 
 export type MainTabParamList = {
