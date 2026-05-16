@@ -10,8 +10,10 @@ export type RootStackParamList = {
   };
 
   OrderDetails: {
-  order: HistoryOrder;
-};
+    order: HistoryOrder;
+  };
+  
+  ChangePassword: undefined;
 };
 
 export type MainTabParamList = {

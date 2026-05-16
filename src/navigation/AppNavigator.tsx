@@ -8,6 +8,7 @@ import { RootStackParamList } from "./types";
 import { useAuth } from "../store/AuthContext";
 import { AuthNavigator } from "./AuthNavigator";
 import { OrderDetailsScreen } from "../screens/OrderDetailsScreen";
+import { ChangePasswordScreen } from "../screens/ChangePasswordScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -27,6 +28,7 @@ export function AppNavigator() {
             <Stack.Screen name="MainTabs" component={MainTabNavigator} />
             <Stack.Screen name="PickupConfirm" component={PickupConfirmScreen} />
             <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+            <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
           </>
         )}
 

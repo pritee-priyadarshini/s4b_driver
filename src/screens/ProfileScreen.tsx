@@ -18,6 +18,7 @@ import { spacing } from '../theme/spacing';
 import { Card } from '../components/Card';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../store/AuthContext';
+import { useNavigation } from '@react-navigation/native';
 
 type SectionKey =
   | 'personal'
@@ -60,6 +61,7 @@ const PROFILE_LINKS = [
 
 export function ProfileScreen() {
   const { logout } = useAuth();
+  const navigation = useNavigation<any>();
   const [openSection, setOpenSection] = useState<SectionKey | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [vehicleOpen, setVehicleOpen] = useState(false);
@@ -245,21 +247,34 @@ export function ProfileScreen() {
                         onChangeText={(v) => updateField('mobile', v)}
                       />
 
-                      <View style={styles.passwordWrapper}>
-                        <InputField
-                          label="Password"
-                          value={formData.password}
-                          secureTextEntry={!showPassword}
-                          onChangeText={(v) =>
-                            updateField('password', v)
-                          }
-                        />
+                      <View style={{ marginTop: spacing.sm }}>
+                        <AppText variant="label">
+                          Password
+                        </AppText>
 
                         <Pressable
-                          style={styles.eyeIcon}
-                          onPress={() => setShowPassword(!showPassword)}
+                          style={styles.passwordButton}
+                          onPress={() =>
+                            navigation.navigate("ChangePassword")
+                          }
                         >
-                          <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={18} />
+                          <View style={styles.passwordLeft}>
+                            <Ionicons
+                              name="lock-closed-outline"
+                              size={18}
+                              color={palette.primary}
+                            />
+
+                            <AppText variant="bodyBold">
+                              Change Password
+                            </AppText>
+                          </View>
+
+                          <Ionicons
+                            name="chevron-forward"
+                            size={18}
+                            color={palette.stone}
+                          />
                         </Pressable>
                       </View>
                     </>
@@ -365,9 +380,14 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { height: 220 },
+  header: { 
+    height: 220 
+  },
 
-  headerBg: { width: '100%', height: '100%' },
+  headerBg: { 
+    width: '100%', 
+    height: '100%' 
+  },
 
   headerContent: {
     position: 'absolute',
@@ -416,9 +436,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  avatar: { width: '100%', height: '100%' },
+  avatar: { 
+    width: '100%', 
+    height: '100%' },
 
-  white: { color: palette.white },
+  white: { 
+    color: palette.white 
+  },
 
   accordionHeader: {
     paddingVertical: spacing.md,
@@ -434,9 +458,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
 
-  passwordWrapper: { position: 'relative' },
+  passwordButton: {
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 14,
+    backgroundColor: palette.white,
+    padding: spacing.md,
 
-  eyeIcon: { position: 'absolute', right: 10, top: 38 },
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  passwordLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+
+  eyeIcon: { 
+    position: 'absolute', 
+    right: 10, 
+    top: 38 
+  },
 
   saveBtn: {
     marginTop: spacing.sm,
@@ -462,6 +507,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
   },
+  
   supportBtn: {
     borderWidth: 1,
     padding: spacing.sm,
@@ -485,13 +531,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     backgroundColor: palette.white,
 
-    flexDirection: 'row',              // 🔥 important
-    justifyContent: 'space-between',   // 🔥 space text + icon
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
 
   dropdownActive: {
-    borderColor: palette.middlegreen,      // highlight when open
+    borderColor: palette.middlegreen,
   },
 
   dropdownMenu: {
