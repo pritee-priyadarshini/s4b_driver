@@ -50,7 +50,11 @@ export function MainTabNavigator() {
 
   return (
     <Tab.Navigator screenOptions={screenOptions}>
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{ tabBarLabel: 'PICKUP' }}
+      />
       <Tab.Screen name="Route" component={RouteScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />

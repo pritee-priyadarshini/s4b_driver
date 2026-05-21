@@ -22,7 +22,13 @@ import { spacing } from '../theme/spacing';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
+const wp = (p: number) => (width * p) / 100;
+const hp = (p: number) => (height * p) / 100;
+const normalize = (size: number) => {
+  const scale = width / 375;
+  return Math.round(size * scale);
+};
 
 type DeliveryStatus =
     | 'Assigned'
@@ -234,9 +240,9 @@ export function DashboardScreen() {
                     <Button
                         label="View"
                         style={{
-                            height: 30,
-                            marginTop: 5,
-                            paddingHorizontal: 18,
+                            height: hp(3.75),
+                            marginTop: hp(0.6),
+                            paddingHorizontal: wp(4.5),
                             paddingVertical: 0,
                             minHeight: 0,
                             backgroundColor: palette.middlegreen,
@@ -255,27 +261,26 @@ export function DashboardScreen() {
 
                 <View style={styles.inlineCard}>
                     <AppText variant="label">Time</AppText>
-                    <AppText variant="bodySmall" style={{ marginTop: 6 }}>{item.time}</AppText>
+                    <AppText variant="bodySmall" style={{ marginTop: 6, textAlign: 'center' }}>{item.time}</AppText>
                 </View>
             </View>
 
             <View style={styles.contactRow}>
                 <AppText variant='label'> Contact:</AppText>
-                <AppText variant='bodySmall'>{item.contact}</AppText>
 
                 <View style={styles.contactActions}>
                     <TouchableOpacity
                         style={styles.contactPill}
                         onPress={() => Linking.openURL(`tel:${item.contact}`)}
                     >
-                        <AppText variant='label'>📞 Call</AppText>
+                        <AppText variant='label' style={{lineHeight: hp(2.5), paddingHorizontal: wp(2)}}>📞 Call</AppText>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.contactPill}
                         onPress={() => Linking.openURL(`sms:${item.contact}`)}
                     >
-                        <AppText variant='label'>💬 Message</AppText>
+                        <AppText variant='label' style={{lineHeight: hp(2.5), paddingHorizontal: wp(2)}}>💬 Message</AppText>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -416,7 +421,7 @@ export function DashboardScreen() {
 
     const MapViewComponent = () => (
         <View>
-            <View style={{ height: height * 0.55, borderRadius: 16, overflow: 'hidden' }}>
+            <View style={{ height: hp(55), borderRadius: normalize(16), overflow: 'hidden' }}>
                 <MapView
                     ref={mapRef}
                     style={{ flex: 1 }}
@@ -511,7 +516,7 @@ export function DashboardScreen() {
                         <FlatList
                             data={selectedItems}
                             keyExtractor={(_, i) => i.toString()}
-                            style={{ maxHeight: height * 0.8 }}
+                            style={{ maxHeight: hp(80) }}
                             renderItem={({ item }) => (
                                 <View style={styles.rowBetween}>
                                     <AppText variant='bodySmall'>{item.name}</AppText>
@@ -540,9 +545,9 @@ export function DashboardScreen() {
                         <Button
                             label="Close"
                             style={{
-                                minHeight: 28,
-                                height: 28,
-                                paddingHorizontal: 20,
+                                minHeight: hp(3.5),
+                                height: hp(3.5),
+                                paddingHorizontal: wp(5),
                                 alignSelf: 'center',
                                 marginTop: spacing.sm,
                             }}
@@ -557,7 +562,7 @@ export function DashboardScreen() {
 
 const styles = StyleSheet.create({
     headerBg: {
-        height: 140,
+        height: hp(18),
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -568,7 +573,7 @@ const styles = StyleSheet.create({
         margin: spacing.md,
         borderColor: palette.border,
         borderWidth: 1,
-        borderRadius: 20,
+        borderRadius: normalize(20),
     },
     toggleBtn: {
         flex: 1,
@@ -577,7 +582,7 @@ const styles = StyleSheet.create({
     },
     toggleActive: {
         backgroundColor: palette.primary,
-        borderRadius: 20,
+        borderRadius: normalize(20),
     },
     toggleText: { color: palette.black },
     toggleTextActive: { color: palette.white },
@@ -591,9 +596,9 @@ const styles = StyleSheet.create({
 
     countPill: {
         backgroundColor: palette.success,
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 12,
+        paddingHorizontal: wp(5),
+        paddingVertical: hp(1.5),
+        borderRadius: normalize(12),
     },
 
     card: {
@@ -602,16 +607,16 @@ const styles = StyleSheet.create({
         marginVertical: spacing.sm,
         padding: spacing.sm,
         gap: spacing.sm,
-        borderRadius: 16,
+        borderRadius: normalize(16),
         borderWidth: 1,
         borderColor: palette.border,
     },
 
     distancePill: {
         backgroundColor: palette.radish,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
+        paddingHorizontal: wp(3),
+        paddingVertical: hp(1),
+        borderRadius: normalize(20),
     },
 
     inlineRow: {
@@ -623,8 +628,8 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: palette.radish,
         padding: spacing.sm,
-        marginHorizontal: 4,
-        borderRadius: 10,
+        marginHorizontal: wp(1),
+        borderRadius: normalize(10),
         alignItems: 'center',
     },
 
@@ -642,28 +647,29 @@ const styles = StyleSheet.create({
 
     contactActions: {
         flexDirection: 'row',
+        gap: wp(2),
     },
 
     contactPill: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: palette.radish,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 20,
+        paddingHorizontal: wp(2.5),
+        paddingVertical: hp(0.75),
+        borderRadius: normalize(20),
         borderWidth: 1,
         borderColor: palette.border,
     },
 
     statusPill: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
+        paddingHorizontal: wp(5),
+        paddingVertical: hp(1.25),
+        borderRadius: normalize(20),
     },
 
     collectBtn: {
-        height: 40,
-        paddingHorizontal: 12,
+        height: hp(5),
+        paddingHorizontal: wp(3),
         paddingVertical: 0,
         minHeight: 0,
     },
@@ -672,7 +678,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.sm,
         backgroundColor: palette.primary,
         padding: spacing.md,
-        borderRadius: 10,
+        borderRadius: normalize(10),
         alignItems: 'center',
     },
 
@@ -684,20 +690,12 @@ const styles = StyleSheet.create({
     },
 
     modalBox: {
-        width: width * 0.75,
-        maxHeight: height * 0.8,
+        width: wp(75),
+        maxHeight: hp(80),
         backgroundColor: palette.white,
         padding: spacing.md,
-        borderRadius: 16,
+        borderRadius: normalize(16),
     },
-
-
-
-
-
-
-
-
     availabilityRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -705,14 +703,13 @@ const styles = StyleSheet.create({
         marginHorizontal: spacing.md,
         marginTop: spacing.md,
     },
-
     switchContainer: {
-        width: 86,
-        height: 40,
-        borderRadius: 25,
+        width: wp(22),
+        height: hp(5),
+        borderRadius: normalize(25),
         justifyContent: 'center',
         position: 'relative',
-        paddingHorizontal: 6,
+        paddingHorizontal: wp(1.5),
     },
 
     switchOn: {
@@ -724,20 +721,20 @@ const styles = StyleSheet.create({
     },
 
     switchThumb: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
+        width: normalize(34),
+        height: normalize(34),
+        borderRadius: normalize(17),
         backgroundColor: palette.white,
         position: 'absolute',
-        top: 3,
+        top: hp(0.4),
     },
 
     thumbRight: {
-        right: 3,
+        right: wp(0.8),
     },
 
     thumbLeft: {
-        left: 3,
+        left: wp(0.8),
     },
 
     switchLabel: {
@@ -746,11 +743,11 @@ const styles = StyleSheet.create({
 
     labelLeft: {
         alignSelf: 'flex-start',
-        marginLeft: 10,
+        marginLeft: wp(2.5),
     },
 
     labelRight: {
         alignSelf: 'flex-end',
-        marginRight: 10,
+        marginRight: wp(2.5),
     },
 });

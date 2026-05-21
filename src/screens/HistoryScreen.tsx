@@ -6,6 +6,7 @@ import {
   FlatList,
   ImageBackground,
   TouchableOpacity,
+  Dimensions
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,14 @@ import {
 } from '../navigation/types';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps } from '@react-navigation/native';
+
+const { width, height } = Dimensions.get("window");
+const wp = (p: number) => (width * p) / 100;
+const hp = (p: number) => (height * p) / 100;
+const normalize = (size: number) => {
+  const scale = width / 375;
+  return Math.round(size * scale);
+};
 
 type Props =
   CompositeScreenProps<
@@ -212,7 +221,7 @@ export function HistoryScreen({
           <View style={styles.restaurantIcon}>
             <Ionicons
               name="restaurant-outline"
-              size={20}
+              size={normalize(20)}
               color={palette.primary}
             />
           </View>
@@ -293,7 +302,7 @@ export function HistoryScreen({
 
             <Ionicons
               name="arrow-forward"
-              size={16}
+              size={normalize(16)}
               color={palette.primary}
             />
           </TouchableOpacity>
@@ -314,7 +323,7 @@ export function HistoryScreen({
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: spacing.xxl,
+          paddingBottom: hp(4),
         }}
         ListHeaderComponent={
           <>
@@ -378,14 +387,15 @@ export function HistoryScreen({
 const styles = StyleSheet.create({
 
   headerBg: {
-    height: 180,
+    height: hp(22),
   },
 
   headerOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: spacing.xl,
+    paddingTop: hp(3),
+    paddingHorizontal: wp(6),
   },
 
   headerText: {
@@ -395,22 +405,24 @@ const styles = StyleSheet.create({
   headerSubtext: {
     color: palette.white,
     opacity: 0.9,
-    marginTop: spacing.xs,
+    marginTop: hp(0.5),
+    textAlign: 'center',
   },
 
   summaryWrapper: {
-    marginTop: -40,
+    marginTop: -hp(4.8),
     marginHorizontal:
-      spacing.md,
-    marginBottom: spacing.md,
+      wp(4),
+    marginBottom: hp(2),
   },
 
   summaryCard: {
     backgroundColor:
       palette.white,
-    borderRadius: 28,
+    borderRadius: normalize(28),
     paddingVertical:
-      spacing.lg,
+      hp(2.2),
+    paddingHorizontal: wp(2),
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -418,10 +430,10 @@ const styles = StyleSheet.create({
       palette.border,
     shadowColor: '#000',
     shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowRadius: normalize(10),
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: normalize(4),
     },
     elevation: 4,
   },
@@ -433,35 +445,35 @@ const styles = StyleSheet.create({
 
   summaryDivider: {
     width: 1,
-    height: 70,
+    height: hp(8.5),
     backgroundColor:
       palette.border,
   },
 
   summaryLabel: {
     color: palette.stone,
-    marginBottom: spacing.xs,
-    letterSpacing: 1,
+    marginBottom: hp(0.5),
+    letterSpacing: normalize(1),
   },
 
   orderCard: {
     backgroundColor:
       palette.white,
     marginHorizontal:
-      spacing.md,
+      wp(4),
     marginBottom:
-      spacing.md,
-    borderRadius: 24,
-    padding: spacing.lg,
+      hp(2),
+    borderRadius: normalize(24),
+    padding: wp(4.5),
     borderWidth: 1,
     borderColor:
       palette.border,
     shadowColor: '#000',
     shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowRadius: normalize(8),
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: normalize(3),
     },
     elevation: 3,
   },
@@ -475,62 +487,62 @@ const styles = StyleSheet.create({
 
   orderLabel: {
     color: palette.stone,
-    letterSpacing: 1,
-    marginBottom: 4,
+    letterSpacing: normalize(1),
+    marginBottom: hp(0.5),
   },
 
   statusPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 30,
+    paddingHorizontal: wp(3.6),
+    paddingVertical: hp(1),
+    borderRadius: normalize(30),
   },
 
   restaurantRow: {
     flexDirection: 'row',
-    marginTop: spacing.lg,
+    marginTop: hp(2),
     alignItems: 'center',
   },
 
   restaurantIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: normalize(48),
+    height: normalize(48),
+    borderRadius: normalize(24),
     backgroundColor:
       palette.radish,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.sm,
+    marginRight: wp(3),
   },
 
   address: {
-    marginTop: 2,
+    marginTop: hp(0.25),
     color: palette.stone,
   },
 
   metricsRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.lg,
+    gap: wp(2),
+    marginTop: hp(2),
   },
 
   metricCard: {
     flex: 1,
     backgroundColor:
       palette.radish,
-    borderRadius: 18,
+    borderRadius: normalize(18),
     paddingVertical:
-      spacing.md,
+      hp(1.8),
     alignItems: 'center',
   },
 
   metricLabel: {
     color: palette.stone,
-    marginBottom: 6,
+    marginBottom: hp(0.7),
   },
 
   bottomRow: {
-    marginTop: spacing.lg,
-    paddingTop: spacing.md,
+    marginTop: hp(2),
+    paddingTop: hp(1.8),
     borderTopWidth: 1,
     borderTopColor:
       palette.border,
@@ -542,7 +554,7 @@ const styles = StyleSheet.create({
 
   dateLabel: {
     color: palette.stone,
-    marginBottom: 4,
+    marginBottom: hp(0.5),
   },
 
   detailsBtn: {
@@ -550,9 +562,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor:
       palette.radish,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
-    gap: 6,
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1.2),
+    borderRadius: normalize(30),
+    gap: wp(1.5),
   },
 });

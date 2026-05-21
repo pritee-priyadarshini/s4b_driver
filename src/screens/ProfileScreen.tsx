@@ -354,16 +354,6 @@ export function ProfileScreen() {
             </Pressable>
           ))}
 
-          {/* UN FACT */}
-          <Card style={styles.card}>
-            <Pressable onPress={() => openLink('https://wedocs.unep.org/items/dbe2cd4c-8384-4636-8359-5847f42b9711')}>
-              <AppText variant="bodySmall">
-                🌍 ^United Nations Environment Programs's Food Waste Index Report
-                2024: Think, Eat, Save, Tracking Food Waste to Halve Global Food Waste.
-              </AppText>
-            </Pressable>
-          </Card>
-
           {/* ACTIONS */}
           <Pressable style={styles.actionBtn} onPress={handleLogout}>
             <AppText variant="label">Log out</AppText>

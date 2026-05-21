@@ -5,6 +5,7 @@ import {
     ScrollView,
     ImageBackground,
     Pressable,
+    Dimensions,
 } from 'react-native';
 
 import { NativeStackScreenProps, } from '@react-navigation/native-stack';
@@ -17,6 +18,14 @@ import { AppText } from '../components/AppText';
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { RootStackParamList, } from '../navigation/types';
+
+const { width, height } = Dimensions.get("window");
+const wp = (p: number) => (width * p) / 100;
+const hp = (p: number) => (height * p) / 100;
+const normalize = (size: number) => {
+  const scale = width / 375;
+  return Math.round(size * scale);
+};
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
@@ -118,7 +127,7 @@ export function OrderDetailsScreen({ route, }: Props) {
                                 />
                             </View>
                             <AppText variant="bodyBold">
-                                Restaurant Details
+                                Collected From
                             </AppText>
                         </View>
 
@@ -196,7 +205,7 @@ export function OrderDetailsScreen({ route, }: Props) {
                             </View>
 
                             <AppText variant="bodyBold">
-                                Charity Receiver
+                                Delivered To
                             </AppText>
                         </View>
 
@@ -232,7 +241,7 @@ export function OrderDetailsScreen({ route, }: Props) {
                             </View>
 
                             <AppText variant="bodyBold">
-                                Delivery Feedback
+                                Collection feedback
                             </AppText>
                         </View>
 
@@ -281,7 +290,7 @@ export function OrderDetailsScreen({ route, }: Props) {
 const styles = StyleSheet.create({
 
     headerBg: {
-        height: 170,
+        height: hp(21),
     },
 
     headerOverlay: {
@@ -304,9 +313,9 @@ const styles = StyleSheet.create({
 
     statusPill: {
         backgroundColor: palette.success,
-        paddingHorizontal: 18,
-        paddingVertical: 8,
-        borderRadius: 30,
+        paddingHorizontal: wp(4.5),
+        paddingVertical: hp(1),
+        borderRadius: normalize(30),
     },
 
     container: {
@@ -316,7 +325,7 @@ const styles = StyleSheet.create({
 
     summaryCard: {
         backgroundColor: palette.white,
-        borderRadius: 24,
+        borderRadius: normalize(24),
         padding: spacing.lg,
         borderWidth: 1,
         borderColor: palette.border,
@@ -330,9 +339,9 @@ const styles = StyleSheet.create({
     },
 
     deliveryIcon: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
+        width: normalize(50),
+        height: normalize(50),
+        borderRadius: normalize(25),
         backgroundColor: palette.radish,
         alignItems: 'center',
         justifyContent: 'center',
@@ -346,7 +355,7 @@ const styles = StyleSheet.create({
     metricCard: {
         flex: 1,
         backgroundColor: palette.radish,
-        borderRadius: 18,
+        borderRadius: normalize(18),
         padding: spacing.md,
     },
 
@@ -362,7 +371,7 @@ const styles = StyleSheet.create({
 
     card: {
         backgroundColor: palette.white,
-        borderRadius: 24,
+        borderRadius: normalize(24),
         borderWidth: 1,
         borderColor: palette.border,
         padding: spacing.lg,
@@ -375,9 +384,9 @@ const styles = StyleSheet.create({
     },
 
     sectionIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: normalize(36),
+        height: normalize(36),
+        borderRadius: normalize(18),
         backgroundColor: palette.radish,
         alignItems: 'center',
         justifyContent: 'center',
@@ -396,7 +405,7 @@ const styles = StyleSheet.create({
     itemsContainer: {
         marginTop: spacing.sm,
         backgroundColor: palette.radish,
-        borderRadius: 20,
+        borderRadius: normalize(20),
         padding: spacing.md,
     },
 
@@ -424,9 +433,9 @@ const styles = StyleSheet.create({
 
     qtyPill: {
         backgroundColor: palette.white,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
+        paddingHorizontal: wp(3),
+        paddingVertical: hp(0.75),
+        borderRadius: normalize(20),
     },
 
     totalRow: {
@@ -441,14 +450,14 @@ const styles = StyleSheet.create({
 
     totalPill: {
         backgroundColor: palette.primary,
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: 24,
+        paddingHorizontal: wp(4.5),
+        paddingVertical: hp(1.25),
+        borderRadius: normalize(24),
     },
 
     ratingCard: {
         backgroundColor: palette.radish,
-        borderRadius: 20,
+        borderRadius: normalize(20),
         padding: spacing.md,
         gap: spacing.lg,
     },
@@ -456,12 +465,11 @@ const styles = StyleSheet.create({
     ratingRow: {
         flexDirection: 'row',
         marginTop: spacing.sm,
-        fontSize: 30,
     },
 
     tomato: {
-        fontSize: 28,
-        lineHeight: 34,
-        marginRight: 4,
+        fontSize: normalize(28),
+        lineHeight: normalize(34),
+        marginRight: wp(1),
     },
 });
