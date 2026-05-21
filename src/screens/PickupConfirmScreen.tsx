@@ -168,7 +168,7 @@ export function PickupConfirmScreen({ route, navigation }: Props) {
                         </View>
 
                         <TouchableOpacity style={styles.addPhotoBtn} onPress={pickImage}>
-                            <AppText variant='label'>Add Photo</AppText>
+                            <AppText variant='label' style={{ color: palette.white }}>Add Photo</AppText>
                         </TouchableOpacity>
                     </View>
 

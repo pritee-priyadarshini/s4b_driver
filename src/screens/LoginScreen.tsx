@@ -9,10 +9,8 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Keyboard,
 } from "react-native";
-
-import { credentials, drivers } from "../data/mock";
-import { Driver } from "../types/domain";
 
 import { Screen } from "../components/Screen";
 import { AppText } from "../components/AppText";
@@ -32,41 +30,38 @@ const normalize = (size: number) => {
 };
 
 export function LoginScreen() {
-  const { login } = useAuth();
-
-  const [email, setEmail] = useState("driver.raju@seva.org");
-  const [password, setPassword] = useState("seva123");
-
-  const [loading, setLoading] = useState(false);
+  const { login, authLoading } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function submit() {
     try {
-      setLoading(true);
       setError("");
 
-      const match = credentials.find(
-        (credential) =>
-          credential.email.toLowerCase() ===
-          email.trim().toLowerCase() &&
-          credential.password === password
-      );
-
-      const driver = drivers.find(
-        (item) => item.id === match?.driverId
-      );
-
-      if (!driver) {
-        setError("Invalid driver email or password.");
+      if (!email || !password) {
+        setError("Please enter email and password");
         return;
       }
 
-      await login(driver, "mock-access-token");
-    } catch (error) {
-      console.log( "LOGIN SCREEN ERROR", error );
-      setError( "Something went wrong.");
-    } finally {
-      setLoading(false);
+      if (!email.includes("@")) {
+        setError("Enter a valid email");
+        return;
+      }
+
+      Keyboard.dismiss();
+
+      await login(email.trim(), password);
+
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        setError("Invalid email or password");
+      } else if (err?.message === "This account is not a driver") {
+        setError("This account is not registered as a driver");
+      } else {
+        setError("Something went wrong. Try again.");
+      }
+
     }
   }
 
@@ -142,32 +137,16 @@ export function LoginScreen() {
                 <TouchableOpacity
                   style={styles.button}
                   onPress={submit}
-                  disabled={loading}
+                  disabled={authLoading || !email || !password}
                 >
                   <AppText
                     variant="label"
                     style={styles.buttonText}
                   >
-                    {loading ? "Signing In..." : "Sign In"}
+                    {authLoading ? "Signing In..." : "Sign In"}
                   </AppText>
                 </TouchableOpacity>
 
-                {/* MOCK CREDENTIALS */}
-                <View style={styles.demoBox}>
-                  <AppText
-                    variant="caption"
-                    style={styles.demoLabel}
-                  >
-                    Mock Credentials
-                  </AppText>
-
-                  <AppText
-                    variant="bodySmall"
-                    style={styles.demoText}
-                  >
-                    driver.raju@seva.org / seva123
-                  </AppText>
-                </View>
               </View>
             </View>
           </ScrollView>
@@ -235,19 +214,4 @@ const styles = StyleSheet.create({
     fontSize: normalize(12),
   },
 
-  demoBox: {
-    marginTop: hp(1),
-    padding: hp(1.6),
-    borderRadius: normalize(12),
-    backgroundColor: colors.greenSoft,
-  },
-
-  demoLabel: {
-    color: colors.brandDark,
-    marginBottom: hp(0.5),
-  },
-
-  demoText: {
-    color: colors.text,
-  },
 });

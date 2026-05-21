@@ -50,7 +50,7 @@ const PROFILE_LINKS = [
   },
   {
     label: 'Terms of Service',
-    url: 'https://www.saveful.com/app-terms-conditions',
+    url: 'https://www.saveful.com/saveful-for-business-terms-conditions',
   },
   {
     label: 'FAQ',

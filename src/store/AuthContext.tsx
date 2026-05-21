@@ -5,9 +5,9 @@ import React, {
   useMemo,
   useState,
 } from "react";
-
 import * as SecureStore from "expo-secure-store";
 
+import { login as loginService, logout as logoutService } from "../services/authService";
 import { Driver } from "../types/domain";
 
 type AuthContextType = {
@@ -16,14 +16,11 @@ type AuthContextType = {
   accessToken: string | null;
   authenticated: boolean;
   loading: boolean;
+  authLoading: boolean;
 
-  login: (
-    driverData: Driver,
-    token?: string
-  ) => Promise<void>;
-
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-
+  
   restoreSession: () => Promise<void>;
 
   setDriver: React.Dispatch<React.SetStateAction<Driver | null>>;
@@ -31,66 +28,73 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-export function AuthProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const TOKEN_KEY = "driverAccessToken";
+const DRIVER_KEY = "driver";
 
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [driver, setDriver] = useState<Driver | null>(null);
-
   const [accessToken, setAccessToken] = useState<string | null>(null);
-
-  const [loading, setLoading] = useState(true);
+  const [appLoading, setAppLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
 
   async function restoreSession() {
     try {
-      setLoading(true);
-      const storedDriver = await SecureStore.getItemAsync("driver");
-      const storedToken = await SecureStore.getItemAsync("accessToken");
+      setAppLoading(true);
+
+      const storedDriver = await SecureStore.getItemAsync(DRIVER_KEY);
+      const storedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+
       if (storedDriver && storedToken) {
         setDriver(JSON.parse(storedDriver));
         setAccessToken(storedToken);
+      } else {
+        setDriver(null);
+        setAccessToken(null);
       }
-
     } catch (error) {
       console.log("RESTORE SESSION ERROR", error);
+      setDriver(null);
+      setAccessToken(null);
     } finally {
-      setLoading(false);
+      setAppLoading(false);
     }
   }
 
-  async function login(
-    driverData: Driver,
-    token?: string
-  ) {
-
+  async function login(email: string, password: string) {
     try {
-      setLoading(true);
+      setAuthLoading(true);
+      const { user, siteAccess, accessToken } = await loginService(email, password);
+      const driverData: Driver = {
+        ...user,
+        ...siteAccess,
+      };
+
       setDriver(driverData);
-      const finalToken = token || "mock-token";
-      setAccessToken(finalToken);
-      await SecureStore.setItemAsync("driver", JSON.stringify(driverData));
-      await SecureStore.setItemAsync("accessToken", finalToken);
+      setAccessToken(accessToken);
+
+      await SecureStore.setItemAsync(DRIVER_KEY, JSON.stringify(driverData));
+      await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+
     } catch (error) {
-      console.log("LOGIN ERROR", error);
+      // console.log("LOGIN ERROR", error);
       throw error;
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
   }
 
   async function logout() {
     try {
-      setLoading(true);
-      await SecureStore.deleteItemAsync("driver");
-      await SecureStore.deleteItemAsync("accessToken");
+      setAuthLoading(true);
+      await logoutService();
+      await SecureStore.deleteItemAsync(DRIVER_KEY);
       setDriver(null);
       setAccessToken(null);
+
     } catch (error) {
       console.log("LOGOUT ERROR", error);
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
   }
 
@@ -98,37 +102,30 @@ export function AuthProvider({
     restoreSession();
   }, []);
 
-  const value = useMemo(() => ({
-    driver,
-    accessToken,
-    authenticated: !!driver && !!accessToken,
-    loading,
-    login,
-    logout,
-    restoreSession,
-    setDriver,
-  }),
-    [
+  const value = useMemo(
+    () => ({
       driver,
       accessToken,
-      loading,
-    ]
+      authenticated: !!driver && !!accessToken,
+      loading: appLoading,
+      authLoading, 
+      login,
+      logout,
+      restoreSession,
+      setDriver,
+    }),
+    [driver, accessToken, appLoading, authLoading]
   );
-  return (
 
-    <AuthContext.Provider value={value} >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error(
-      "useAuth must be used inside AuthProvider"
-    );
+    throw new Error("useAuth must be used inside AuthProvider");
   }
+
   return context;
 }
