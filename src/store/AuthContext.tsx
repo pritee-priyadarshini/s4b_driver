@@ -1,60 +1,115 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
-} from "react";
-import * as SecureStore from "expo-secure-store";
+} from 'react';
+import * as SecureStore from 'expo-secure-store';
 
-import { login as loginService, logout as logoutService } from "../services/authService";
-import { Driver } from "../types/domain";
+import {
+  clearAccessToken,
+  getProfile,
+  login as loginRequest,
+  storeAccessToken,
+  logout as logoutService,
+} from '../services/authService';
+import { setUnauthorizedHandler } from '../services/api';
+import { AuthDriver } from '../types/auth';
+import {
+  assertDriverAccount,
+  buildAuthDriver,
+  isDriverSiteRole,
+} from '../utils/authSession';
 
 type AuthContextType = {
-
-  driver: Driver | null;
+  driver: AuthDriver | null;
   accessToken: string | null;
   authenticated: boolean;
   loading: boolean;
   authLoading: boolean;
-
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  
   restoreSession: () => Promise<void>;
-
-  setDriver: React.Dispatch<React.SetStateAction<Driver | null>>;
+  refreshProfile: () => Promise<void>;
+  setDriver: React.Dispatch<React.SetStateAction<AuthDriver | null>>;
 };
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-const TOKEN_KEY = "driverAccessToken";
-const DRIVER_KEY = "driver";
+const DRIVER_KEY = 'driver';
+
+async function persistDriver(driver: AuthDriver) {
+  await SecureStore.setItemAsync(DRIVER_KEY, JSON.stringify(driver));
+}
+
+async function clearPersistedSession() {
+  await Promise.all([
+    clearAccessToken(),
+    SecureStore.deleteItemAsync(DRIVER_KEY),
+  ]);
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [driver, setDriver] = useState<Driver | null>(null);
+  const [driver, setDriver] = useState<AuthDriver | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [appLoading, setAppLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
+
+  const clearSession = useCallback(async () => {
+    await clearPersistedSession();
+    setDriver(null);
+    setAccessToken(null);
+  }, []);
+
+  const applyDriverSession = useCallback(async (nextDriver: AuthDriver) => {
+    setDriver(nextDriver);
+    setAccessToken(nextDriver.accessToken);
+    await persistDriver(nextDriver);
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    const profile = await getProfile();
+    const token = await SecureStore.getItemAsync('driverAccessToken');
+
+    if (!token) {
+      throw new Error('Missing access token');
+    }
+
+    const siteRole = profile.role.siteRole ?? profile.sites[0]?.siteRole;
+    if (!isDriverSiteRole(siteRole)) {
+      await clearSession();
+      throw new Error('NOT_A_DRIVER');
+    }
+
+    const nextDriver = buildAuthDriver(profile, token, driver?.siteAccess);
+    await applyDriverSession(nextDriver);
+  }, [applyDriverSession, clearSession, driver?.siteAccess]);
 
   async function restoreSession() {
     try {
       setAppLoading(true);
 
-      const storedDriver = await SecureStore.getItemAsync(DRIVER_KEY);
-      const storedToken = await SecureStore.getItemAsync(TOKEN_KEY);
-
-      if (storedDriver && storedToken) {
-        setDriver(JSON.parse(storedDriver));
-        setAccessToken(storedToken);
-      } else {
-        setDriver(null);
-        setAccessToken(null);
+      const storedToken = await SecureStore.getItemAsync('driverAccessToken');
+      if (!storedToken) {
+        await clearSession();
+        return;
       }
+
+      const profile = await getProfile();
+      const siteRole = profile.role.siteRole ?? profile.sites[0]?.siteRole;
+
+      if (!isDriverSiteRole(siteRole)) {
+        await clearSession();
+        return;
+      }
+
+      const nextDriver = buildAuthDriver(profile, storedToken);
+      await applyDriverSession(nextDriver);
     } catch (error) {
-      console.log("RESTORE SESSION ERROR", error);
-      setDriver(null);
-      setAccessToken(null);
+      console.log('RESTORE SESSION ERROR', error);
+      await clearSession();
     } finally {
       setAppLoading(false);
     }
@@ -63,21 +118,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(email: string, password: string) {
     try {
       setAuthLoading(true);
-      const { user, siteAccess, accessToken } = await loginService(email, password);
-      const driverData: Driver = {
-        ...user,
-        ...siteAccess,
-      };
 
-      setDriver(driverData);
-      setAccessToken(accessToken);
+      const loginResponse = await loginRequest(email, password);
+      await storeAccessToken(loginResponse.accessToken);
 
-      await SecureStore.setItemAsync(DRIVER_KEY, JSON.stringify(driverData));
-      await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+      let profile;
+      try {
+        profile = await getProfile();
+      } catch (profileError) {
+        await clearAccessToken();
+        throw profileError;
+      }
 
-    } catch (error) {
-      // console.log("LOGIN ERROR", error);
-      throw error;
+      assertDriverAccount(loginResponse, profile);
+
+      const nextDriver = buildAuthDriver(
+        profile,
+        loginResponse.accessToken,
+        loginResponse.siteAccess,
+      );
+
+      await applyDriverSession(nextDriver);
     } finally {
       setAuthLoading(false);
     }
@@ -87,12 +148,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setAuthLoading(true);
       await logoutService();
-      await SecureStore.deleteItemAsync(DRIVER_KEY);
-      setDriver(null);
-      setAccessToken(null);
-
+      await clearSession();
     } catch (error) {
-      console.log("LOGOUT ERROR", error);
+      console.log('LOGOUT ERROR', error);
+      await clearSession();
     } finally {
       setAuthLoading(false);
     }
@@ -102,19 +161,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     restoreSession();
   }, []);
 
+  useEffect(() => {
+    setUnauthorizedHandler(clearSession);
+    return () => setUnauthorizedHandler(null);
+  }, [clearSession]);
+
   const value = useMemo(
     () => ({
       driver,
       accessToken,
       authenticated: !!driver && !!accessToken,
       loading: appLoading,
-      authLoading, 
+      authLoading,
       login,
       logout,
       restoreSession,
+      refreshProfile,
       setDriver,
     }),
-    [driver, accessToken, appLoading, authLoading]
+    [driver, accessToken, appLoading, authLoading, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -124,7 +189,7 @@ export function useAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
+    throw new Error('useAuth must be used inside AuthProvider');
   }
 
   return context;

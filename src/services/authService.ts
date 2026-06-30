@@ -1,29 +1,48 @@
 import api from './api';
 import * as SecureStore from 'expo-secure-store';
 
+import { AuthProfile, LoginResponse } from '../types/auth';
+
 const TOKEN_KEY = 'driverAccessToken';
 
-export const login = async (email: string, password: string) => {
-  const res = await api.post('/auth/login', {
-    email,
-    password,
-  });
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
-  const { accessToken, user, siteAccess } = res.data;
+export const authService = {
+  login: (email: string, password: string) =>
+    api.post<LoginResponse>('/auth/login', {
+      email: normalizeEmail(email),
+      password,
+    }),
 
-  if (siteAccess?.siteRole !== 'DRIVER') {
-    throw new Error('This account is not a driver');
-  }
+  profile: () => api.get<AuthProfile>('/auth/profile'),
 
+  forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email: normalizeEmail(email) }),
+
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    api.post('/auth/reset-password', {
+      email: normalizeEmail(email),
+      otp,
+      newPassword,
+    }),
+};
+
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  const res = await authService.login(email, password);
+  return res.data;
+}
+
+export async function getProfile(): Promise<AuthProfile> {
+  const res = await authService.profile();
+  return res.data;
+}
+
+export async function storeAccessToken(accessToken: string): Promise<void> {
   await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+}
 
-  return {
-    user,
-    siteAccess,
-    accessToken,
-  };
-};
-
-export const logout = async () => {
+export async function clearAccessToken(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
-};
+}
+
+export const logout = clearAccessToken;

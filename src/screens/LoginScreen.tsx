@@ -18,6 +18,7 @@ import { InputField } from "../components/InputField";
 
 import { colors } from "../components/ui";
 import { useAuth } from "../store/AuthContext";
+import { getLoginErrorMessage } from "../utils/apiError";
 
 const { width, height } = Dimensions.get("window");
 
@@ -39,29 +40,23 @@ export function LoginScreen() {
     try {
       setError("");
 
-      if (!email || !password) {
+      const trimmedEmail = email.trim().toLowerCase();
+
+      if (!trimmedEmail || !password) {
         setError("Please enter email and password");
         return;
       }
 
-      if (!email.includes("@")) {
+      if (!trimmedEmail.includes("@")) {
         setError("Enter a valid email");
         return;
       }
 
       Keyboard.dismiss();
 
-      await login(email.trim(), password);
-
-    } catch (err: any) {
-      if (err?.response?.status === 401) {
-        setError("Invalid email or password");
-      } else if (err?.message === "This account is not a driver") {
-        setError("This account is not registered as a driver");
-      } else {
-        setError("Something went wrong. Try again.");
-      }
-
+      await login(trimmedEmail, password);
+    } catch (err: unknown) {
+      setError(getLoginErrorMessage(err));
     }
   }
 
@@ -83,7 +78,6 @@ export function LoginScreen() {
           >
             <View style={styles.container}>
 
-              {/* LOGO */}
               <View style={styles.top}>
                 <Image
                   source={require("../../assets/intro/logo.png")}
@@ -92,7 +86,6 @@ export function LoginScreen() {
                 />
               </View>
 
-              {/* FORM */}
               <View style={styles.form}>
                 <AppText
                   variant="subheading"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,40 +7,34 @@ import {
   Image,
   Linking,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import { AppText } from '../components/AppText';
 import { Screen } from '../components/Screen';
-
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { Card } from '../components/Card';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../store/AuthContext';
-import { useNavigation } from '@react-navigation/native';
+import { useSubmitLock } from '../hooks/useSubmitLock';
+import { profileService } from '../services/profileService';
+import { AuthDriver } from '../types/auth';
+import { showErrorAlert, showSuccessAlert } from '../utils/apiError';
 
-type SectionKey =
-  | 'personal'
-  | 'contact'
-  | 'driver';
-
-type VehicleType =
-  | 'Bike'
-  | 'Scooter'
-  | 'Car'
-  | 'Mini Van'
-  | 'Mini Truck';
+type SectionKey = 'personal' | 'contact' | 'driver';
 
 type ProfileFormData = {
   firstName: string;
   lastName: string;
   email: string;
   mobile: string;
-  password: string;
-  license: string;
-  vehicle: VehicleType;
-  availability: string;
+  organisationName: string;
+  siteName: string;
+  siteAddress: string;
+  siteRole: string;
 };
 
 const PROFILE_LINKS = [
@@ -54,46 +48,98 @@ const PROFILE_LINKS = [
   },
   {
     label: 'FAQ',
-    url: 'https://www.saveful.com/faq',
+    url: 'https://www.saveful.com/faq#saveful-for-business-faq',
   },
 ] as const;
 
+function buildFormFromDriver(driver: AuthDriver): ProfileFormData {
+  const primarySite = driver.profile.sites[0];
+
+  return {
+    firstName: driver.firstName,
+    lastName: driver.lastName,
+    email: driver.email,
+    mobile: driver.phoneNumber,
+    organisationName: driver.profile.organisation?.name ?? '',
+    siteName: driver.siteAccess?.siteName ?? primarySite?.name ?? '',
+    siteAddress: driver.siteAccess?.address ?? primarySite?.address ?? '',
+    siteRole: driver.siteRole ?? primarySite?.siteRole ?? 'DRIVER',
+  };
+}
+
+function formatSinceDate(driver: AuthDriver): string {
+  const rawCreatedAt =
+    driver.profile.organisation?.createdAt ??
+    driver.profile.user.memberSince;
+
+  if (!rawCreatedAt) return '';
+
+  if (typeof rawCreatedAt === 'number') {
+    return `Saveful for Business since ${rawCreatedAt}`;
+  }
+
+  const parsed = new Date(rawCreatedAt);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return `Saveful for Business since ${parsed.toLocaleDateString('en-GB', {
+    month: 'short',
+    year: 'numeric',
+  })}`;
+}
 
 export function ProfileScreen() {
-  const { logout } = useAuth();
+  const { driver, logout, refreshProfile, loading } = useAuth();
   const navigation = useNavigation<any>();
+  const { submitting, withLock } = useSubmitLock();
   const [openSection, setOpenSection] = useState<SectionKey | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [vehicleOpen, setVehicleOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [formData, setFormData] = useState<ProfileFormData>({
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'driver@email.com',
-    mobile: '+91 9876543210',
-    password: '',
-    license: 'DL-123456',
-    vehicle: 'Bike',
-    availability: 'Full-time',
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobile: '',
+    organisationName: '',
+    siteName: '',
+    siteAddress: '',
+    siteRole: 'DRIVER',
   });
 
-  const handleSave = () => {
-
-    if (!formData.mobile.trim()) {
-      Alert.alert('Validation', 'Mobile number is required.');
-      return;
+  useEffect(() => {
+    if (driver) {
+      setFormData(buildFormFromDriver(driver));
     }
+  }, [driver]);
 
-    if (formData.password.length > 0 && formData.password.length < 6) {
-      Alert.alert('Validation', 'Password must be at least 6 characters.');
-      return;
-    }
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
-    Alert.alert('Success', 'Profile updated successfully');
-  };
+      const loadProfile = async () => {
+        try {
+          setRefreshing(true);
+          await refreshProfile();
+        } catch (error) {
+          if (active) {
+            console.log('PROFILE REFRESH ERROR', error);
+          }
+        } finally {
+          if (active) {
+            setRefreshing(false);
+          }
+        }
+      };
+
+      loadProfile();
+
+      return () => {
+        active = false;
+      };
+    }, [refreshProfile]),
+  );
 
   const updateField = <K extends keyof ProfileFormData>(
     key: K,
-    value: ProfileFormData[K]
+    value: ProfileFormData[K],
   ) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
@@ -110,40 +156,94 @@ export function ProfileScreen() {
         return;
       }
       await Linking.openURL(url);
-
     } catch {
       Alert.alert('Error', 'Something went wrong.');
     }
   };
 
+  const handleUpdatePersonal = async () => {
+    if (submitting) return;
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      Alert.alert('Validation', 'First name and last name are required.');
+      return;
+    }
+
+    await withLock(async () => {
+      try {
+        if (!driver?.id) {
+          Alert.alert('Error', 'User not found');
+          return;
+        }
+
+        await profileService.updateProfile(driver.id, {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+        });
+        await refreshProfile();
+        showSuccessAlert('Personal details updated');
+      } catch (error) {
+        showErrorAlert(error, 'Could not update personal details', 'Update failed');
+      }
+    });
+  };
+
+  const handleUpdateContact = async () => {
+    if (submitting) return;
+
+    if (!formData.mobile.trim()) {
+      Alert.alert('Validation', 'Mobile number is required.');
+      return;
+    }
+
+    await withLock(async () => {
+      try {
+        if (!driver?.id) {
+          Alert.alert('Error', 'User not found');
+          return;
+        }
+
+        await profileService.updateProfile(driver.id, {
+          mobile: formData.mobile.trim(),
+        });
+        await refreshProfile();
+        showSuccessAlert('Contact details updated');
+      } catch (error) {
+        showErrorAlert(error, 'Could not update contact', 'Update failed');
+      }
+    });
+  };
+
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: logout,
-        },
-      ]
-    );
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Logout', style: 'destructive', onPress: logout },
+    ]);
   };
 
   const handleDelete = () => {
     Alert.alert(
       'Delete Account',
-      'Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: logout },
-      ]
+      'Account deletion is not available in the app yet. Please contact support if you need help.',
+      [{ text: 'OK', style: 'default' }],
     );
   };
+
+  const displayName = `${formData.firstName} ${formData.lastName}`.trim() || 'Driver';
+  const sinceLabel = driver ? formatSinceDate(driver) : 'Saveful for Business';
+
+  if (loading && !driver) {
+    return (
+      <Screen backgroundColor={palette.creme}>
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color={palette.primary} />
+          <AppText variant="bodySmall" style={styles.loadingText}>
+            Loading profile...
+          </AppText>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen backgroundColor={palette.creme}>
@@ -152,8 +252,6 @@ export function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-
-        {/* HEADER */}
         <View style={styles.header}>
           <Image
             source={require('../../assets/placeholder/feed-bg.png')}
@@ -161,54 +259,54 @@ export function ProfileScreen() {
           />
 
           <View style={styles.headerContent}>
-            <View>
-              <AppText variant="heading" style={styles.white}>
-                {formData.firstName} {formData.lastName}
+            <View style={styles.headerTextBlock}>
+              <AppText variant="heading" style={styles.white} numberOfLines={2}>
+                {displayName}
               </AppText>
 
-              <AppText variant="caption" style={styles.white}>
-                Saveful for Business since 2025
+              <AppText variant="caption" style={styles.white} numberOfLines={1}>
+                {sinceLabel}
               </AppText>
             </View>
 
-            <Pressable style={styles.profileCircle}>
-              <AppText variant='h5'>
-                {formData.firstName?.charAt(0) || 'D'}
+            <View style={styles.profileCircle}>
+              <AppText variant="h5">
+                {formData.firstName?.charAt(0)?.toUpperCase() || 'D'}
               </AppText>
-            </Pressable>
+            </View>
           </View>
+
+          {refreshing ? (
+            <View style={styles.refreshingBadge}>
+              <ActivityIndicator size="small" color={palette.white} />
+            </View>
+          ) : null}
 
           <View style={styles.helpOverlay}>
             <Card style={styles.helpCard}>
-              <AppText variant="body" style={{ textAlign: 'center' }}>Need a hand?</AppText>
+              <AppText variant="body" style={{ textAlign: 'center' }}>
+                Need a hand?
+              </AppText>
 
               <View style={styles.centerDivider} />
 
               <AppText variant="bodySmall">
-                We're here to help! If you need a hand with anything in the app, or have any questions feel free to reach out and we'll help out.
+                We're here to help! If you need a hand with anything in the app,
+                or have any questions feel free to reach out and we'll help out.
               </AppText>
-
 
               <Pressable
                 style={styles.supportBtn}
                 onPress={() => openLink('https://www.saveful.com/contact')}
               >
-                <AppText variant="label">Contact Support </AppText>
+                <AppText variant="label">Contact Support</AppText>
               </Pressable>
             </Card>
           </View>
         </View>
 
         <View style={styles.content}>
-
-          {/* ACCORDIONS */}
-          {(
-            [
-              'personal',
-              'contact',
-              'driver',
-            ] as SectionKey[]
-          ).map((key) => (
+          {(['personal', 'contact', 'driver'] as SectionKey[]).map((key) => (
             <View key={key}>
               <Pressable
                 style={styles.accordionHeader}
@@ -230,33 +328,50 @@ export function ProfileScreen() {
 
               {openSection === key && (
                 <Card style={styles.accordionContent}>
-
                   {key === 'personal' && (
                     <>
-                      <InputField label="First Name" value={formData.firstName} editable={false} />
-                      <InputField label="Last Name" value={formData.lastName} editable={false} />
+                      <InputField
+                        label="First Name"
+                        value={formData.firstName}
+                        onChangeText={(value) => updateField('firstName', value)}
+                      />
+                      <InputField
+                        label="Last Name"
+                        value={formData.lastName}
+                        onChangeText={(value) => updateField('lastName', value)}
+                      />
+
+                      <Pressable
+                        style={[styles.saveBtn, submitting && { opacity: 0.65 }]}
+                        disabled={submitting}
+                        onPress={handleUpdatePersonal}
+                      >
+                        <AppText variant="label" style={{ color: palette.white }}>
+                          {submitting ? 'Saving...' : 'Save Changes'}
+                        </AppText>
+                      </Pressable>
                     </>
                   )}
 
                   {key === 'contact' && (
                     <>
-                      <InputField label="Email" value={formData.email} editable={false} />
+                      <InputField
+                        label="Email"
+                        value={formData.email}
+                        editable={false}
+                      />
                       <InputField
                         label="Mobile"
                         value={formData.mobile}
-                        onChangeText={(v) => updateField('mobile', v)}
+                        onChangeText={(value) => updateField('mobile', value)}
                       />
 
                       <View style={{ marginTop: spacing.sm }}>
-                        <AppText variant="label">
-                          Password
-                        </AppText>
+                        <AppText variant="label">Password</AppText>
 
                         <Pressable
                           style={styles.passwordButton}
-                          onPress={() =>
-                            navigation.navigate("ChangePassword")
-                          }
+                          onPress={() => navigation.navigate('ChangePassword')}
                         >
                           <View style={styles.passwordLeft}>
                             <Ionicons
@@ -264,10 +379,7 @@ export function ProfileScreen() {
                               size={18}
                               color={palette.primary}
                             />
-
-                            <AppText variant="bodyBold">
-                              Change Password
-                            </AppText>
+                            <AppText variant="bodyBold">Change Password</AppText>
                           </View>
 
                           <Ionicons
@@ -282,67 +394,49 @@ export function ProfileScreen() {
 
                   {key === 'driver' && (
                     <>
-                      <InputField label="License" value={formData.license} onChangeText={(v) => updateField('license', v)} />
-                      {/* VEHICLE */}
-                      <View style={{ marginTop: spacing.sm }}>
-                        <AppText variant="label">Vehicle</AppText>
-                        <Pressable
-                          style={[
-                            styles.dropdownTrigger,
-                            vehicleOpen && styles.dropdownActive,
-                          ]}
-                          onPress={() => setVehicleOpen((prev) => !prev)}
-                        >
-                          <AppText variant="bodyBold" style={{ color: formData.vehicle ? palette.black : palette.stone }}>
-                            {formData.vehicle || 'Select vehicle'}
-                          </AppText>
+                      <AppText variant="bodySmall" style={styles.readOnlyNote}>
+                        Organisation and site details are managed by your admin.
+                      </AppText>
 
-                          <Ionicons
-                            name={vehicleOpen ? 'chevron-up' : 'chevron-down'}
-                            size={18}
-                            color="#666"
-                          />
-                        </Pressable>
-                      </View>
-                      {vehicleOpen && (
-                        <View style={styles.dropdownMenu}>
-                          {(
-                            [
-                              'Bike',
-                              'Scooter',
-                              'Car',
-                              'Mini Van',
-                              'Mini Truck',
-                            ] as VehicleType[]
-                          ).map((v) => (
-                            <Pressable
-                              key={v}
-                              style={styles.dropdownItem}
-                              onPress={() => {
-                                updateField('vehicle', v);
-                                setVehicleOpen(false);
-                              }}
-                            >
-                              <AppText variant="bodySmall">{v}</AppText>
-                            </Pressable>
-                          ))}
-                        </View>
-                      )}
+                      <InputField
+                        label="Organisation"
+                        value={formData.organisationName}
+                        editable={false}
+                      />
+                      <InputField
+                        label="Assigned Site"
+                        value={formData.siteName}
+                        editable={false}
+                      />
+                      <InputField
+                        label="Site Address"
+                        value={formData.siteAddress}
+                        editable={false}
+                      />
+                      <InputField
+                        label="Role"
+                        value={formData.siteRole}
+                        editable={false}
+                      />
                     </>
                   )}
 
-                  {key !== 'personal' && (
-                    <Pressable style={styles.saveBtn} onPress={handleSave}>
-                      <AppText variant="label" style={{ color: palette.white }}>Save Changes</AppText>
+                  {key === 'contact' && (
+                    <Pressable
+                      style={[styles.saveBtn, submitting && { opacity: 0.65 }]}
+                      disabled={submitting}
+                      onPress={handleUpdateContact}
+                    >
+                      <AppText variant="label" style={{ color: palette.white }}>
+                        {submitting ? 'Saving...' : 'Save Changes'}
+                      </AppText>
                     </Pressable>
                   )}
-
                 </Card>
               )}
             </View>
           ))}
 
-          {/* LINKS */}
           {PROFILE_LINKS.map((item) => (
             <Pressable
               key={item.label}
@@ -354,7 +448,6 @@ export function ProfileScreen() {
             </Pressable>
           ))}
 
-          {/* ACTIONS */}
           <Pressable style={styles.actionBtn} onPress={handleLogout}>
             <AppText variant="label">Log out</AppText>
           </Pressable>
@@ -362,7 +455,6 @@ export function ProfileScreen() {
           <Pressable style={styles.actionBtn} onPress={handleDelete}>
             <AppText variant="label">Delete my account</AppText>
           </Pressable>
-
         </View>
       </ScrollView>
     </Screen>
@@ -370,13 +462,24 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { 
-    height: 220 
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
 
-  headerBg: { 
-    width: '100%', 
-    height: '100%' 
+  loadingText: {
+    color: palette.stone,
+  },
+
+  header: {
+    height: 220,
+  },
+
+  headerBg: {
+    width: '100%',
+    height: '100%',
   },
 
   headerContent: {
@@ -387,6 +490,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
+  },
+
+  headerTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  refreshingBadge: {
+    position: 'absolute',
+    top: 20,
+    right: spacing.md,
   },
 
   helpOverlay: {
@@ -424,14 +539,11 @@ const styles = StyleSheet.create({
     backgroundColor: palette.radish,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
 
-  avatar: { 
-    width: '100%', 
-    height: '100%' },
-
-  white: { 
-    color: palette.white 
+  white: {
+    color: palette.white,
   },
 
   accordionHeader: {
@@ -455,7 +567,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: palette.white,
     padding: spacing.md,
-
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -465,12 +576,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-  },
-
-  eyeIcon: { 
-    position: 'absolute', 
-    right: 10, 
-    top: 38 
   },
 
   saveBtn: {
@@ -497,7 +602,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
   },
-  
+
   supportBtn: {
     borderWidth: 1,
     padding: spacing.sm,
@@ -505,43 +610,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  card: {
-    padding: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    marginTop: spacing.md,
-  },
-
-  dropdownTrigger: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    padding: spacing.sm,
-    marginTop: spacing.xs,
-    backgroundColor: palette.white,
-
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-
-  dropdownActive: {
-    borderColor: palette.middlegreen,
-  },
-
-  dropdownMenu: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    marginTop: 4,
-    backgroundColor: palette.white,
-    overflow: 'hidden',
-  },
-
-  dropdownItem: {
-    padding: spacing.sm,
-    borderBottomWidth: 0.5,
-    borderColor: palette.border,
+  readOnlyNote: {
+    color: palette.stone,
+    marginBottom: spacing.sm,
   },
 });
