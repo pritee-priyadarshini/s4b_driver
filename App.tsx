@@ -13,7 +13,6 @@ import {
 import { useFonts } from "expo-font";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { AuthProvider } from "./src/store/AuthContext";
-import { TripProvider } from "./src/store/TripContext";
 import { useDriverShiftStore } from "./src/store/driverShiftStore";
 
 export default function App() {
@@ -41,9 +40,7 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <AuthProvider>
-          <TripProvider>
-            <AppWithShiftHydration />
-          </TripProvider>
+          <AppWithShiftHydration />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

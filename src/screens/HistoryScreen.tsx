@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   heroWrap: {
     width: SCREEN_W,
     marginLeft: 0,
-    height: hp(22),
+    height: hp(20),
   },
   heroContent: {
     flex: 1,

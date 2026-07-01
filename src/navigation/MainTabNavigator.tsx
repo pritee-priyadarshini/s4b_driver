@@ -5,7 +5,6 @@ import { BottomTabNavigationOptions, createBottomTabNavigator } from "@react-nav
 import { Ionicons } from "@expo/vector-icons";
 
 import { DashboardScreen } from "../screens/DashboardScreen";
-import { RouteScreen } from "../screens/RouteScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 
 import { MainTabParamList } from "./types";
@@ -14,18 +13,20 @@ import { HistoryScreen } from "../screens/HistoryScreen";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Dashboard: 'bicycle-outline',
-  History: 'time-outline',
-  Profile: 'person-outline',
-  Route: 'navigate-outline',
+const iconMap: Record<
+  keyof MainTabParamList,
+  { outline: keyof typeof Ionicons.glyphMap; filled: keyof typeof Ionicons.glyphMap }
+> = {
+  Dashboard: { outline: 'bicycle-outline', filled: 'bicycle' },
+  History: { outline: 'time-outline', filled: 'time' },
+  Profile: { outline: 'person-outline', filled: 'person' },
 };
 
 const screenOptions = ({ route }: any): BottomTabNavigationOptions => ({
   headerShown: false,
-  tabBarActiveTintColor: palette.primary,
+  tabBarActiveTintColor: palette.kale,
   tabBarInactiveTintColor: palette.textMuted,
-    tabBarStyle: {
+  tabBarStyle: {
     height: 76,
     paddingBottom: 12,
     paddingTop: 10,
@@ -37,13 +38,16 @@ const screenOptions = ({ route }: any): BottomTabNavigationOptions => ({
     fontSize: 11,
     textTransform: 'uppercase',
   },
-  tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-    <Ionicons
-      color={color}
-      name={iconMap[route.name as keyof typeof iconMap]}
-      size={size}
-    />
-  ),
+  tabBarIcon: ({ color, size, focused }: { color: string; size: number; focused: boolean }) => {
+    const icons = iconMap[route.name as keyof MainTabParamList];
+    return (
+      <Ionicons
+        color={color}
+        name={focused ? icons.filled : icons.outline}
+        size={size}
+      />
+    );
+  },
 });
 
 export function MainTabNavigator() {
@@ -55,7 +59,6 @@ export function MainTabNavigator() {
         component={DashboardScreen}
         options={{ tabBarLabel: 'PICKUP' }}
       />
-      <Tab.Screen name="Route" component={RouteScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

@@ -16,7 +16,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { AppText } from '../components/AppText';
 import { Screen } from '../components/Screen';
 import { HeroHeader } from '../components/HeroHeader';
@@ -849,7 +848,7 @@ const styles = StyleSheet.create({
   heroWrap: {
     width: SCREEN_W,
     marginLeft: 0,
-    height: hp(22),
+    height: hp(21),
   },
   heroContent: {
     flex: 1,
@@ -889,10 +888,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: wp(1.5),
-    paddingVertical: hp(0.65),
+    paddingVertical: hp(1),
     paddingHorizontal: wp(3),
     borderRadius: normalize(20),
     maxWidth: '100%',
+    marginBottom: -hp(0.5),
   },
   locationPillOffline: {
     backgroundColor: 'rgba(0,0,0,0.28)',

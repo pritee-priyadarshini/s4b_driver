@@ -1,475 +1,447 @@
 import React, { useMemo } from 'react';
 import {
-    View,
-    StyleSheet,
-    ScrollView,
-    ImageBackground,
-    Pressable,
-    Dimensions,
+  View,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  Platform,
 } from 'react-native';
-
-import { NativeStackScreenProps, } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
-
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
+import { HeroHeader } from '../components/HeroHeader';
+import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { palette } from '../theme/colors';
-import { spacing } from '../theme/spacing';
-import { RootStackParamList, } from '../navigation/types';
+import { hp, normalize, wp } from '../utils/responsive';
+import { RootStackParamList } from '../navigation/types';
+import { OrderStatus } from '../types/history';
 
-const { width, height } = Dimensions.get("window");
-const wp = (p: number) => (width * p) / 100;
-const hp = (p: number) => (height * p) / 100;
-const normalize = (size: number) => {
-  const scale = width / 375;
-  return Math.round(size * scale);
-};
-
+const ACCENT = palette.kale;
+const ACCENT_SOFT = '#D8EBDF';
+const ACCENT_LIGHT = '#F2F8F4';
+const { width: SCREEN_W } = Dimensions.get('window');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
-export function OrderDetailsScreen({ route, }: Props) {
-    const navigation = useNavigation();
-    const { order } = route.params;
-    const totalQty = useMemo(() => {
-        return order.items.reduce(
-            (sum, item) => sum + item.qty,
-            0
-        );
-    }, [order.items]);
+function statusLabel(status: OrderStatus) {
+  if (status === 'Delivered') return 'Completed';
+  if (status === 'Picked') return 'In transit';
+  if (status === 'Cancelled') return 'Cancelled';
+  return 'Assigned';
+}
 
-    return (
-        <Screen backgroundColor={palette.creme}>
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{
-                    paddingBottom: spacing.xxl,
-                }}
-            >
-                {/* HEADER */}
-                <ImageBackground
-                    source={require('../../assets/placeholder/feed-bg.png')}
-                    style={styles.headerBg}
-                >
-                    <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-                        <Ionicons name="arrow-back" size={24} color={palette.white} />
-                    </Pressable>
+function statusColor(status: OrderStatus) {
+  if (status === 'Delivered') return ACCENT;
+  if (status === 'Picked') return '#C47B1A';
+  if (status === 'Cancelled') return palette.chilli;
+  return palette.stone;
+}
 
-                    <View style={styles.headerOverlay}>
-                        <AppText variant="h4" style={styles.headerText}  >
-                            Order Details
-                        </AppText>
-                    </View>
-                </ImageBackground>
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Ionicons
+          key={star}
+          name={star <= rating ? 'star' : 'star-outline'}
+          size={normalize(18)}
+          color="#E8A317"
+        />
+      ))}
+    </View>
+  );
+}
 
-                <View style={styles.container}>
-                    <View style={styles.summaryCard}>
-                        <View style={styles.summaryTop}>
-                            <View>
-                                <AppText variant="caption" style={styles.label}  >
-                                    ORDER ID
-                                </AppText>
+export function OrderDetailsScreen({ route, navigation }: Props) {
+  useTransparentStatusBar('light');
+  const insets = useSafeAreaInsets();
+  const { order } = route.params;
 
-                                <AppText variant="h6">
-                                    {order.orderId}
-                                </AppText>
-                            </View>
+  const totalQty = useMemo(
+    () => order.items.reduce((sum, item) => sum + item.qty, 0),
+    [order.items],
+  );
 
-                            <View style={styles.statusPill}>
-                                <AppText   variant="label"  style={{  color: palette.white,  }}   >
-                                    {order.status}
-                                </AppText>
-                            </View>
-                        </View>
+  const accent = statusColor(order.status);
 
-                        <View style={styles.metricsRow}>
-                            <View style={styles.metricCard}>
-                                <AppText variant="caption" style={styles.metricLabel}>
-                                    Assigned
-                                </AppText>
+  return (
+    <Screen scrollable={false} backgroundColor={palette.background} transparentTop>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + hp(3) }}
+      >
+        <HeroHeader
+          source={require('../../assets/placeholder/kale-header.png')}
+          height={hp(20)}
+          style={styles.heroWrap}
+          contentStyle={styles.heroContent}
+        >
+          <StatusBar style="light" translucent backgroundColor="transparent" />
 
-                                <AppText variant="bodyBold">
-                                    {order.assignedDate}
-                                </AppText>
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+          >
+            <Ionicons name="arrow-back" size={normalize(22)} color={palette.white} />
+          </Pressable>
 
-                                <AppText variant="bodySmall"  style={styles.metricSub}>
-                                    {order.assignedTime}
-                                </AppText>
-                            </View>
+          <View style={styles.heroBody}>
+            <AppText variant="caption" style={styles.heroEyebrow}>
+              Order details
+            </AppText>
+            <AppText variant="h6" style={styles.heroTitle}>
+              {order.orderId}
+            </AppText>
+            <View style={[styles.heroPill, { backgroundColor: 'rgba(0,0,0,0.28)' }]}>
+              <View style={[styles.statusDot, { backgroundColor: accent }]} />
+              <AppText variant="caption" style={styles.heroPillText}>
+                {statusLabel(order.status)}
+              </AppText>
+            </View>
+          </View>
+        </HeroHeader>
 
-                            {/* DELIVERED */}
-                            <View style={styles.metricCard}>
-                                <AppText variant="caption" style={styles.metricLabel} >
-                                    Delivered
-                                </AppText>
-
-                                <AppText variant="bodyBold">
-                                    {order.deliveredDate}
-                                </AppText>
-
-                                <AppText variant="bodySmall"  style={styles.metricSub} >
-                                    {order.deliveredTime}
-                                </AppText>
-                            </View>
-                        </View>
-                    </View>
-
-                    
-                    <View style={styles.card}>
-                        <View style={styles.sectionHeader}>
-                            <View style={styles.sectionIcon}>
-                                <Ionicons
-                                    name="restaurant-outline"
-                                    size={18}
-                                    color={palette.primary}
-                                />
-                            </View>
-                            <AppText variant="bodyBold">
-                                Collected From
-                            </AppText>
-                        </View>
-
-                        <View style={styles.infoBlock}>
-                            <AppText variant="caption" style={styles.label} >
-                                RESTAURANT NAME
-                            </AppText>
-
-                            <AppText variant="bodyLarge">
-                                {order.restaurant.name}
-                            </AppText>
-                        </View>
-
-                        <View style={styles.infoBlock}>
-                            <AppText variant="caption" style={styles.label} >
-                                ADDRESS
-                            </AppText>
-
-                            <AppText variant="bodySmall">
-                                📍 {order.restaurant.address}
-                            </AppText>
-                        </View>
-
-                        <View style={styles.itemsContainer}>
-                            <View style={styles.tableHeader}>
-                                <AppText variant="label">
-                                    Item
-                                </AppText>
-
-                                <AppText variant="label">
-                                    Quantity
-                                </AppText>
-                            </View>
-
-                            {order.items.map((item) => (
-                                <View key={item.name}  style={styles.tableRow} >
-                                    <View style={styles.itemLeft}>
-                                        <AppText variant="bodySmall">
-                                            {item.name}
-                                        </AppText>
-                                    </View>
-
-                                    <View style={styles.qtyPill}>
-                                        <AppText  variant="label"   style={{   color: palette.primary,   }}  >
-                                            {item.qty} kg
-                                        </AppText>
-                                    </View>
-                                </View>
-                            ))}
-
-                            {/* TOTAL */}
-
-                            <View style={styles.totalRow}>
-                                <AppText variant="bodyBold">
-                                    Total Quantity
-                                </AppText>
-
-                                <View style={styles.totalPill}>
-                                    <AppText  variant="bodyBold"   style={{ color: palette.white,  }}   >
-                                        {totalQty} kg
-                                    </AppText>
-                                </View>
-                            </View>
-                        </View>
-                    </View>
-
-                    <View style={styles.card}>
-                        <View style={styles.sectionHeader}>
-                            <View style={styles.sectionIcon}>
-                                <Ionicons
-                                    name="heart-outline"
-                                    size={18}
-                                    color={palette.primary}
-                                />
-                            </View>
-
-                            <AppText variant="bodyBold">
-                                Delivered To
-                            </AppText>
-                        </View>
-
-                        <View style={styles.infoBlock}>
-                            <AppText variant="caption"  style={styles.label}  >
-                                CHARITY NAME
-                            </AppText>
-
-                            <AppText variant="bodyLarge">
-                                {order.charity.name}
-                            </AppText>
-                        </View>
-
-                        <View style={styles.infoBlock}>
-                            <AppText   variant="caption"  style={styles.label}  >
-                                ADDRESS
-                            </AppText>
-
-                            <AppText variant="bodySmall">
-                                📍 {order.charity.address}
-                            </AppText>
-                        </View>
-                    </View>
-
-                    <View style={styles.card}>
-                        <View style={styles.sectionHeader}>
-                            <View style={styles.sectionIcon}>
-                                <Ionicons
-                                    name="star-outline"
-                                    size={18}
-                                    color={palette.primary}
-                                />
-                            </View>
-
-                            <AppText variant="bodyBold">
-                                Collection feedback
-                            </AppText>
-                        </View>
-
-                        <View style={styles.ratingCard}>
-                            <View>
-                                <AppText  variant="caption" style={styles.label}  >
-                                    DRIVER EXPERIENCE
-                                </AppText>
-
-                                <View style={styles.ratingRow}>
-                                    {[...Array(order.driverRating)].map((_, index) => (
-                                        <AppText
-                                            key={`driver-${index}`}
-                                            style={styles.tomato}
-                                        >
-                                            🍅
-                                        </AppText>
-                                    ))}
-                                </View>
-                            </View>
-
-                            <View>
-                                <AppText variant="caption" style={styles.label}  >
-                                    RESTAURANT EXPERIENCE
-                                </AppText>
-
-                                <View style={styles.ratingRow}>
-                                    {[...Array(order.restaurantRating)].map((_, index) => (
-                                        <AppText
-                                            key={`restaurant-${index}`}
-                                            style={styles.tomato}
-                                        >
-                                            🍅
-                                        </AppText>
-                                    ))}
-                                </View>
-                            </View>
-                        </View>
-                    </View>
+        <View style={styles.mainContent}>
+          <View style={styles.card}>
+            <AppText variant="h7" style={styles.sectionTitle}>
+              Trip timeline
+            </AppText>
+            <View style={styles.infoRow}>
+              <View style={styles.infoBox}>
+                <Ionicons name="calendar-outline" size={normalize(20)} color={ACCENT} />
+                <View style={styles.infoBoxText}>
+                  <AppText variant="caption" color={palette.stone}>Assigned</AppText>
+                  <AppText variant="bodyBold" style={styles.infoValue} numberOfLines={1}>
+                    {order.assignedDate}
+                  </AppText>
+                  <AppText variant="bodySmall" color={palette.stone}>{order.assignedTime}</AppText>
                 </View>
-            </ScrollView>
-        </Screen>
-    );
+              </View>
+              <View style={styles.infoBox}>
+                <Ionicons name="checkmark-circle-outline" size={normalize(20)} color={ACCENT} />
+                <View style={styles.infoBoxText}>
+                  <AppText variant="caption" color={palette.stone}>Delivered</AppText>
+                  <AppText variant="bodyBold" style={styles.infoValue} numberOfLines={1}>
+                    {order.deliveredDate}
+                  </AppText>
+                  <AppText variant="bodySmall" color={palette.stone}>{order.deliveredTime}</AppText>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.statusBadge, { backgroundColor: ACCENT_SOFT }]}>
+                <Ionicons name="restaurant-outline" size={normalize(14)} color={ACCENT} />
+                <AppText variant="caption" style={{ color: ACCENT }}>Pickup</AppText>
+              </View>
+            </View>
+
+            <AppText variant="h6" style={styles.restaurantTitle}>
+              {order.restaurant.name}
+            </AppText>
+
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={normalize(18)} color={ACCENT} />
+              <AppText variant="bodySmall" color={palette.stone} style={styles.addressText}>
+                {order.restaurant.address}
+              </AppText>
+            </View>
+
+            <View style={styles.itemsSection}>
+              <AppText variant="bodyBold" style={styles.itemsTitle}>
+                Food collected
+              </AppText>
+              <AppText variant="bodySmall" color={palette.stone} style={styles.itemsSub}>
+                {order.items.length} items · {totalQty} kg total
+              </AppText>
+
+              {order.items.map((item) => (
+                <View key={item.name} style={styles.foodRow}>
+                  <AppText variant="body" style={{ flex: 1 }}>{item.name}</AppText>
+                  <AppText variant="bodyBold" color={palette.stone}>{item.qty} kg</AppText>
+                </View>
+              ))}
+
+              <View style={styles.foodTotal}>
+                <AppText variant="bodyBold">Total</AppText>
+                <AppText variant="bodyBold" style={{ color: ACCENT }}>{totalQty} kg</AppText>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.statusBadge, { backgroundColor: ACCENT_SOFT }]}>
+                <Ionicons name="home-outline" size={normalize(14)} color={ACCENT} />
+                <AppText variant="caption" style={{ color: ACCENT }}>Delivery</AppText>
+              </View>
+            </View>
+
+            <AppText variant="h6" style={styles.restaurantTitle}>
+              {order.charity.name}
+            </AppText>
+
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={normalize(18)} color={ACCENT} />
+              <AppText variant="bodySmall" color={palette.stone} style={styles.addressText}>
+                {order.charity.address}
+              </AppText>
+            </View>
+
+            <View style={styles.charityNote}>
+              <Ionicons name="heart-outline" size={normalize(16)} color={ACCENT} />
+              <AppText variant="bodySmall" color={palette.stone} style={{ flex: 1 }}>
+                This collection was delivered to the charity hub above.
+              </AppText>
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <AppText variant="h7" style={styles.sectionTitle}>
+              Collection feedback
+            </AppText>
+
+            <View style={styles.feedbackBox}>
+              <View style={styles.feedbackRow}>
+                <View style={[styles.feedbackIcon, { backgroundColor: ACCENT_SOFT }]}>
+                  <Ionicons name="person-outline" size={normalize(18)} color={ACCENT} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="caption" color={palette.stone}>Your experience</AppText>
+                  <StarRating rating={order.driverRating} />
+                </View>
+                <AppText variant="bodyBold" style={styles.ratingScore}>
+                  {order.driverRating}/5
+                </AppText>
+              </View>
+
+              <View style={styles.feedbackDivider} />
+
+              <View style={styles.feedbackRow}>
+                <View style={[styles.feedbackIcon, { backgroundColor: ACCENT_SOFT }]}>
+                  <Ionicons name="restaurant-outline" size={normalize(18)} color={ACCENT} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="caption" color={palette.stone}>Restaurant experience</AppText>
+                  <StarRating rating={order.restaurantRating} />
+                </View>
+                <AppText variant="bodyBold" style={styles.ratingScore}>
+                  {order.restaurantRating}/5
+                </AppText>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </Screen>
+  );
 }
 
 const styles = StyleSheet.create({
-
-    headerBg: {
-        height: hp(21),
-    },
-
-    headerOverlay: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingTop: spacing.lg,
-    },
-
-    headerText: {
-        color: palette.white,
-        marginBottom: spacing.sm,
-    },
-
-    backBtn: {
-        position: 'absolute',
-        left: spacing.md,
-        top: spacing.lg,
-    },
-
-    statusPill: {
-        backgroundColor: palette.success,
-        paddingHorizontal: wp(4.5),
-        paddingVertical: hp(1),
-        borderRadius: normalize(30),
-    },
-
-    container: {
-        padding: spacing.md,
-        gap: spacing.md,
-    },
-
-    summaryCard: {
-        backgroundColor: palette.white,
-        borderRadius: normalize(24),
-        padding: spacing.lg,
-        borderWidth: 1,
-        borderColor: palette.border,
-        gap: spacing.md,
-    },
-
-    summaryTop: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-
-    deliveryIcon: {
-        width: normalize(50),
-        height: normalize(50),
-        borderRadius: normalize(25),
-        backgroundColor: palette.radish,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-
-    metricsRow: {
-        flexDirection: 'row',
-        gap: spacing.sm,
-    },
-
-    metricCard: {
-        flex: 1,
-        backgroundColor: palette.radish,
-        borderRadius: normalize(18),
-        padding: spacing.md,
-    },
-
-    metricLabel: {
-        color: palette.stone,
-        marginBottom: spacing.xs,
-    },
-
-    metricSub: {
-        marginTop: spacing.xs,
-        color: palette.stone,
-    },
-
-    card: {
-        backgroundColor: palette.white,
-        borderRadius: normalize(24),
-        borderWidth: 1,
-        borderColor: palette.border,
-        padding: spacing.lg,
-        gap: spacing.md,
-    },
-
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-
-    sectionIcon: {
-        width: normalize(36),
-        height: normalize(36),
-        borderRadius: normalize(18),
-        backgroundColor: palette.radish,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: spacing.sm,
-    },
-
-    infoBlock: {
-        gap: spacing.xs,
-    },
-
-    label: {
-        color: palette.stone,
-        letterSpacing: 1,
-    },
-
-    itemsContainer: {
-        marginTop: spacing.sm,
-        backgroundColor: palette.radish,
-        borderRadius: normalize(20),
-        padding: spacing.md,
-    },
-
-    tableHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-        paddingBottom: spacing.sm,
-        marginBottom: spacing.sm,
-    },
-
-    tableRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: spacing.sm,
-    },
-
-    itemLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-    },
-
-    qtyPill: {
-        backgroundColor: palette.white,
-        paddingHorizontal: wp(3),
-        paddingVertical: hp(0.75),
-        borderRadius: normalize(20),
-    },
-
-    totalRow: {
-        marginTop: spacing.md,
-        paddingTop: spacing.md,
-        borderTopWidth: 1,
-        borderTopColor: palette.border,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-
-    totalPill: {
-        backgroundColor: palette.primary,
-        paddingHorizontal: wp(4.5),
-        paddingVertical: hp(1.25),
-        borderRadius: normalize(24),
-    },
-
-    ratingCard: {
-        backgroundColor: palette.radish,
-        borderRadius: normalize(20),
-        padding: spacing.md,
-        gap: spacing.lg,
-    },
-
-    ratingRow: {
-        flexDirection: 'row',
-        marginTop: spacing.sm,
-    },
-
-    tomato: {
-        fontSize: normalize(28),
-        lineHeight: normalize(34),
-        marginRight: wp(1),
-    },
+  heroWrap: {
+    width: SCREEN_W,
+    marginLeft: 0,
+    height: hp(22),
+  },
+  heroContent: {
+    flex: 1,
+    paddingHorizontal: wp(5),
+    justifyContent: 'flex-end',
+    paddingBottom: hp(3),
+  },
+  backBtn: {
+    position: 'absolute',
+    left: wp(5),
+    top: hp(5),
+    width: normalize(40),
+    height: normalize(40),
+    borderRadius: normalize(20),
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  heroBody: {
+    gap: hp(0.6),
+    paddingTop: hp(4),
+  },
+  heroEyebrow: {
+    color: 'rgba(255,255,255,0.85)',
+    textTransform: 'none',
+    letterSpacing: 0.3,
+  },
+  heroTitle: {
+    color: palette.white,
+    fontSize: normalize(26),
+    lineHeight: normalize(34),
+    textTransform: 'none',
+  },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: wp(1.5),
+    paddingVertical: hp(0.65),
+    paddingHorizontal: wp(3),
+    borderRadius: normalize(20),
+  },
+  heroPillText: {
+    color: palette.white,
+    textTransform: 'none',
+  },
+  statusDot: {
+    width: normalize(7),
+    height: normalize(7),
+    borderRadius: normalize(4),
+  },
+  mainContent: {
+    paddingHorizontal: wp(4),
+    marginTop: -hp(1),
+    gap: hp(1.6),
+  },
+  card: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: wp(4),
+    gap: hp(1.2),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+    ...Platform.select({
+      ios: { shadowColor: palette.black, shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 2 },
+    }),
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(1.5),
+    paddingHorizontal: wp(2.5),
+    paddingVertical: hp(0.45),
+    borderRadius: normalize(8),
+  },
+  sectionTitle: {
+    textTransform: 'none',
+    marginBottom: hp(0.2),
+  },
+  infoRow: {
+    flexDirection: 'row',
+    gap: wp(2.5),
+  },
+  infoBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: wp(2),
+    backgroundColor: ACCENT_LIGHT,
+    borderRadius: normalize(12),
+    padding: wp(3),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ACCENT + '25',
+  },
+  infoBoxText: {
+    flex: 1,
+    gap: hp(0.15),
+    minWidth: 0,
+  },
+  infoValue: {
+    textTransform: 'none',
+    fontSize: normalize(15),
+  },
+  restaurantTitle: {
+    textTransform: 'none',
+    fontSize: normalize(20),
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: wp(2),
+  },
+  addressText: {
+    flex: 1,
+    textTransform: 'none',
+    lineHeight: normalize(20),
+  },
+  itemsSection: {
+    backgroundColor: ACCENT_LIGHT,
+    borderRadius: normalize(12),
+    padding: wp(3.5),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ACCENT + '25',
+    gap: hp(0.4),
+  },
+  itemsTitle: {
+    textTransform: 'none',
+  },
+  itemsSub: {
+    textTransform: 'none',
+    marginBottom: hp(0.6),
+  },
+  foodRow: {
+    flexDirection: 'row',
+    paddingVertical: hp(0.9),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.strokecream,
+  },
+  foodTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: hp(0.8),
+    paddingTop: hp(1),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.strokecream,
+  },
+  charityNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: wp(2),
+    backgroundColor: ACCENT_LIGHT,
+    borderRadius: normalize(10),
+    padding: wp(3),
+    marginTop: hp(0.3),
+  },
+  feedbackBox: {
+    backgroundColor: ACCENT_LIGHT,
+    borderRadius: normalize(12),
+    padding: wp(3.5),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ACCENT + '25',
+    gap: hp(1.2),
+  },
+  feedbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(3),
+  },
+  feedbackIcon: {
+    width: normalize(40),
+    height: normalize(40),
+    borderRadius: normalize(12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.strokecream,
+  },
+  starRow: {
+    flexDirection: 'row',
+    gap: wp(0.5),
+    marginTop: hp(0.4),
+  },
+  ratingScore: {
+    textTransform: 'none',
+    color: palette.black,
+  },
 });

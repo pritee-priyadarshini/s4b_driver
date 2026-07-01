@@ -6,7 +6,6 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MainTabNavigator } from './MainTabNavigator';
-import { PickupConfirmScreen } from '../screens/PickupConfirmScreen';
 import { RootStackParamList } from './types';
 import { useAuth } from '../store/AuthContext';
 import { AuthNavigator } from './AuthNavigator';
@@ -36,7 +35,7 @@ export function AppNavigator() {
     const data = payload.data ?? {};
 
     if (data.pickupId) {
-      navigationRef.current.navigate('MainTabs', { screen: 'Route' });
+      navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
       return;
     }
 
@@ -90,7 +89,6 @@ export function AppNavigator() {
         ) : (
           <>
             <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-            <Stack.Screen name="PickupConfirm" component={PickupConfirmScreen} />
             <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
             <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
           </>

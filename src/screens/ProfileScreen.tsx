@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-
+import { StatusBar } from 'expo-status-bar';
 import { AppText } from '../components/AppText';
 import { Screen } from '../components/Screen';
 import { palette } from '../theme/colors';
@@ -24,6 +24,7 @@ import { profileService } from '../services/profileService';
 import { AuthDriver } from '../types/auth';
 import { showErrorAlert, showSuccessAlert } from '../utils/apiError';
 import { NotificationPermissionSettings } from '../components/NotificationPermissionSettings';
+import { hp } from '../utils/responsive';
 
 type SectionKey = 'personal' | 'contact' | 'notifications' | 'driver';
 
@@ -247,7 +248,7 @@ export function ProfileScreen() {
   }
 
   return (
-    <Screen backgroundColor={palette.creme}>
+    <Screen scrollable={false} backgroundColor={palette.creme} transparentTop>
       <ScrollView
         contentContainerStyle={{ paddingBottom: spacing.lg }}
         showsVerticalScrollIndicator={false}
@@ -258,6 +259,7 @@ export function ProfileScreen() {
             source={require('../../assets/placeholder/feed-bg.png')}
             style={styles.headerBg}
           />
+          <StatusBar style="light" />
 
           <View style={styles.headerContent}>
             <View style={styles.headerTextBlock}>
@@ -320,7 +322,7 @@ export function ProfileScreen() {
                       ? 'Contact Details'
                       : key === 'notifications'
                         ? 'Notifications'
-                        : 'Driver Details'}
+                        : 'Charity Details'}
                 </AppText>
 
                 <Ionicons
@@ -473,23 +475,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
-
   loadingText: {
     color: palette.stone,
   },
-
   header: {
-    height: 220,
+    height: hp(25),
   },
-
   headerBg: {
     width: '100%',
     height: '100%',
   },
-
   headerContent: {
     position: 'absolute',
-    top: 20,
+    top: hp(5),
     left: spacing.md,
     right: spacing.md,
     flexDirection: 'row',
@@ -497,25 +495,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-
   headerTextBlock: {
     flex: 1,
     minWidth: 0,
   },
-
   refreshingBadge: {
     position: 'absolute',
     top: 20,
     right: spacing.md,
   },
-
   helpOverlay: {
     position: 'absolute',
     bottom: -70,
     left: spacing.xl,
     right: spacing.xl,
   },
-
   helpCard: {
     padding: spacing.xl,
     borderRadius: 12,
@@ -524,7 +518,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     gap: spacing.sm,
   },
-
   centerDivider: {
     width: '96%',
     height: 1,
