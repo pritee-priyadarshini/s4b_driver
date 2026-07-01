@@ -59,6 +59,8 @@ export type AuthProfileSite = {
   isActive?: boolean;
   siteRole: string;
   grantedAt?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 export type AuthProfile = {

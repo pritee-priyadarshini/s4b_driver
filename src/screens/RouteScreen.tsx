@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   Pressable,
-  ImageBackground,
   Modal,
   Alert,
   Linking,
@@ -12,16 +11,20 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
-import { Button } from '../components/Button';
+import { HeroHeader } from '../components/HeroHeader';
 import { OsmMapView } from '../components/OsmMapView';
 
 import { palette } from '../theme/colors';
-import { spacing } from '../theme/spacing';
+import { PICKUP_THEME } from '../theme/restaurantCardTheme';
+import { hp, normalize, wp } from '../utils/responsive';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
+
+const theme = PICKUP_THEME;
 
 type RouteStatus =
   | 'Assigned'
@@ -169,45 +172,25 @@ export function RouteScreen() {
   };
 
   return (
-    <Screen backgroundColor={palette.creme} contentStyle={styles.container}>
-      <ImageBackground
-        source={require('../../assets/placeholder/feed-bg.png')}
-        style={styles.headerBg}
-        resizeMode="cover"
+    <Screen backgroundColor={palette.background} contentStyle={styles.container} transparentTop>
+      <HeroHeader
+        source={require('../../assets/placeholder/kale-header.png')}
+        height={hp(18)}
+        contentStyle={styles.heroContent}
       >
+        <StatusBar style="light" translucent backgroundColor="transparent" />
         <AppText variant="caption" style={styles.heroLabel}>
           ACTIVE DELIVERY
         </AppText>
         <AppText variant="h4" style={styles.headerTitle}>
           {pickup.id}
         </AppText>
-        <View style={styles.heroMetrics}>
-          <View style={styles.heroMetric}>
-            <AppText variant="caption" style={styles.metricCaption}>
-              ETA
-            </AppText>
-            <AppText variant="h5" style={styles.white}>
-              {pickup.eta}m
-            </AppText>
-          </View>
-          <View style={styles.heroMetric}>
-            <AppText variant="caption" style={styles.metricCaption}>
-              DISTANCE
-            </AppText>
-            <AppText variant="h5" style={styles.white}>
-              {pickup.distance}
-            </AppText>
-          </View>
-          <View style={styles.heroMetric}>
-            <AppText variant="caption" style={styles.metricCaption}>
-              FOOD
-            </AppText>
-            <AppText variant="h5" style={styles.white}>
-              {totalQty}kg
-            </AppText>
-          </View>
+        <View style={styles.heroStatsPill}>
+          <AppText variant="caption" style={styles.heroStatsText}>
+            ETA {pickup.eta}m · {pickup.distance} · {totalQty}kg food
+          </AppText>
         </View>
-      </ImageBackground>
+      </HeroHeader>
 
       <Card style={styles.mapCard}>
         <OsmMapView
@@ -227,7 +210,7 @@ export function RouteScreen() {
             { transform: [{ translateX: trackerAnim }] },
           ]}
         >
-          <MaterialCommunityIcons name="car-sports" size={34} color={palette.primary} />
+          <MaterialCommunityIcons name="car-sports" size={34} color={theme.accent} />
         </Animated.View>
         <View style={styles.stepRow}>
           {STEPS.map((step, index) => {
@@ -247,78 +230,109 @@ export function RouteScreen() {
         </View>
       </Card>
 
-      <Card style={styles.detailCard}>
+      <Card style={[styles.detailCard, { borderColor: theme.accent + '40' }]}>
+        <View style={styles.badgeRow}>
+          <View style={[styles.tag, { backgroundColor: theme.statusBg }]}>
+            <AppText style={[styles.tagText, { color: theme.accent }]}>IN PROGRESS</AppText>
+          </View>
+          <View style={[styles.tagOutline, { borderColor: theme.accent + '80' }]}>
+            <View style={[styles.statusDot, { backgroundColor: theme.accent }]} />
+            <AppText style={[styles.tagText, { color: theme.accent }]}>{pickup.status.toUpperCase()}</AppText>
+          </View>
+        </View>
+
         <View style={styles.topRow}>
           <View style={{ flex: 1 }}>
-            <AppText variant="bodyBold">
+            <AppText variant="bodyBold" style={styles.cardTitle}>
               Pickup: {pickup.restaurant.name}
             </AppText>
-            <AppText variant="bodySmall">📍 {pickup.restaurant.address}</AppText>
-            <AppText variant="bodyBold">{pickup.distance}</AppText>
-          </View>
-          <View style={styles.statusPill}>
-            <AppText variant="bodyBold" style={styles.statusPillText}>
-              {pickup.status}
-            </AppText>
-          </View>
-        </View>
-
-        <View style={styles.contactRow}>
-          <View style={{ flex: 1 }}>
-            <AppText variant="bodySmall">Restaurant contact</AppText>
-          </View>
-          <View style={styles.iconRow}>
-            <Pressable style={styles.iconPill} onPress={() => makeCall(pickup.restaurant.phone)}>
-              <Ionicons name="call-outline" size={18} color={palette.white} />
-              <AppText variant="bodyBold" style={styles.iconText}>Call</AppText>
-            </Pressable>
-            <Pressable style={styles.iconPill} onPress={() => sendMessage(pickup.restaurant.phone)}>
-              <Ionicons name="chatbubble-outline" size={18} color={palette.white} />
-              <AppText variant="bodyBold" style={styles.iconText}>Message</AppText>
-            </Pressable>
+            <View style={styles.metaRow}>
+              <Ionicons name="location-outline" size={normalize(13)} color={theme.accent} />
+              <AppText variant="bodySmall" color={palette.stone} style={{ flex: 1 }}>
+                {pickup.restaurant.address}
+              </AppText>
+            </View>
           </View>
         </View>
 
-        <View style={styles.locationCard}>
-          <View style={styles.locationIcon}>
-            <Ionicons name="home" size={18} color={palette.white} />
+        <View style={styles.hr} />
+
+        <View style={styles.contactGrid}>
+          <View style={styles.contactColumn}>
+            <AppText style={styles.contactLabel}>RESTAURANT</AppText>
+            <View style={styles.contactActions}>
+              <Pressable
+                style={[styles.contactActionBtn, { borderColor: theme.accent + '70' }]}
+                onPress={() => makeCall(pickup.restaurant.phone)}
+              >
+                <Ionicons name="call-outline" size={normalize(13)} color={theme.accent} />
+                <AppText style={[styles.contactActionText, { color: theme.accent }]}>CALL</AppText>
+              </Pressable>
+              <Pressable
+                style={[styles.contactActionBtn, { borderColor: theme.accent + '70' }]}
+                onPress={() => sendMessage(pickup.restaurant.phone)}
+              >
+                <Ionicons name="chatbubble-outline" size={normalize(13)} color={theme.accent} />
+                <AppText style={[styles.contactActionText, { color: theme.accent }]}>MSG</AppText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.locationCard, { backgroundColor: theme.lightBg, borderColor: theme.accent + '25' }]}>
+          <View style={[styles.locationIcon, { backgroundColor: theme.statusBg }]}>
+            <Ionicons name="home-outline" size={18} color={theme.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <AppText variant="label" style={styles.locationLabel}>
-              DELIVERY POINT
-            </AppText>
+            <AppText style={styles.locationLabel}>DELIVERY POINT</AppText>
             <AppText variant="bodyBold">{pickup.charity.name}</AppText>
-            <AppText variant="bodySmall">📍 {pickup.charity.address}</AppText>
+            <AppText variant="bodySmall" color={palette.stone}>{pickup.charity.address}</AppText>
           </View>
-          <Pressable style={styles.roundIconBtn} onPress={() => makeCall(pickup.charity.phone)}>
-            <Ionicons name="call" size={18} color={palette.primary} />
+          <Pressable
+            style={[styles.roundIconBtn, { borderColor: theme.accent + '70' }]}
+            onPress={() => makeCall(pickup.charity.phone)}
+          >
+            <Ionicons name="call-outline" size={18} color={theme.accent} />
           </Pressable>
         </View>
 
-        <View style={styles.metaRow}>
-          <Pressable style={styles.metaCard} onPress={() => setModalVisible(true)}>
-            <AppText variant="bodyBold">Items</AppText>
-            <View style={styles.viewBtn}>
-              <AppText variant="bodyBold" style={styles.viewText}>View</AppText>
+        <View style={styles.detailRow}>
+          <Pressable
+            style={[styles.detailBox, { flex: 1 }]}
+            onPress={() => setModalVisible(true)}
+          >
+            <View style={[styles.detailIconWrap, { backgroundColor: theme.statusBg }]}>
+              <Ionicons name="list-outline" size={normalize(18)} color={theme.accent} />
+            </View>
+            <View style={styles.detailTextWrap}>
+              <AppText style={styles.detailLabel}>ITEMS</AppText>
+              <AppText variant="bodyBold" style={styles.detailValue}>View manifest</AppText>
             </View>
           </Pressable>
-          <View style={styles.metaCard}>
-            <AppText variant="bodyBold">Pickup Date</AppText>
-            <AppText variant="bodySmall">{pickup.pickupDate}</AppText>
-          </View>
-          <View style={styles.metaCard}>
-            <AppText variant="bodyBold">Pickup Time</AppText>
-            <AppText variant="bodySmall">{pickup.pickupTime}</AppText>
+          <View style={[styles.detailBox, { flex: 1 }]}>
+            <View style={[styles.detailIconWrap, { backgroundColor: theme.statusBg }]}>
+              <Ionicons name="calendar-outline" size={normalize(18)} color={theme.accent} />
+            </View>
+            <View style={styles.detailTextWrap}>
+              <AppText style={styles.detailLabel}>PICKUP</AppText>
+              <AppText variant="bodyBold" style={styles.detailValue} numberOfLines={1}>{pickup.pickupDate}</AppText>
+              <AppText variant="bodySmall" color={palette.stone} numberOfLines={1}>{pickup.pickupTime}</AppText>
+            </View>
           </View>
         </View>
 
-        <View style={styles.infoBlock}>
-          <AppText variant="caption">Instructions: {pickup.instructions}</AppText>
+        <View style={[styles.infoBlock, { backgroundColor: theme.lightBg, borderColor: theme.accent + '35' }]}>
+          <AppText variant="caption" color={palette.stone}>Instructions: {pickup.instructions}</AppText>
         </View>
 
         <View style={styles.actionRow}>
-          <Button label="Continue Trip" style={styles.tripBtn} onPress={() => {}} />
-          <Pressable style={styles.navBtn} onPress={openNavigation}>
+          <Pressable style={[styles.primaryBtn, { backgroundColor: theme.accent, flex: 1 }]} onPress={() => {}}>
+            <AppText variant="bodyBold" style={styles.primaryBtnText}>Continue Trip</AppText>
+            <View style={styles.primaryBtnArrow}>
+              <Ionicons name="arrow-forward" size={normalize(17)} color={theme.accent} />
+            </View>
+          </Pressable>
+          <Pressable style={[styles.navBtn, { backgroundColor: theme.accent }]} onPress={openNavigation}>
             <Ionicons name="navigate" size={22} color={palette.white} />
           </Pressable>
         </View>
@@ -349,54 +363,54 @@ export function RouteScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    gap: spacing.lg,
-    paddingBottom: spacing.xl,
+    gap: hp(1.6),
+    paddingBottom: hp(4),
+    paddingHorizontal: wp(4),
+    marginTop: -hp(1),
   },
-  headerBg: {
-    height: 180,
+  heroContent: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    gap: spacing.xs,
+    paddingHorizontal: wp(5),
+    gap: hp(0.5),
   },
   heroLabel: {
     color: palette.white,
     opacity: 0.9,
     letterSpacing: 1,
+    textTransform: 'none',
   },
   headerTitle: {
     color: palette.white,
+    textTransform: 'none',
   },
-  white: {
+  heroStatsPill: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingVertical: hp(0.6),
+    paddingHorizontal: wp(3),
+    borderRadius: normalize(20),
+    marginTop: hp(0.5),
+  },
+  heroStatsText: {
     color: palette.white,
-  },
-  heroMetrics: {
-    flexDirection: 'row',
-    gap: spacing.lg,
-    marginTop: spacing.sm,
-  },
-  heroMetric: {
-    alignItems: 'center',
-  },
-  metricCaption: {
-    color: palette.white,
-    opacity: 0.85,
-    letterSpacing: 0.5,
+    textTransform: 'none',
   },
   mapCard: {
-    marginHorizontal: spacing.lg,
     padding: 0,
     overflow: 'hidden',
-    borderRadius: 20,
+    borderRadius: normalize(14),
+    borderColor: palette.strokecream,
   },
   map: {
-    height: 240,
+    height: hp(28),
     width: '100%',
   },
   trackCard: {
-    marginHorizontal: spacing.lg,
-    padding: spacing.lg,
+    padding: wp(4),
     overflow: 'hidden',
+    borderRadius: normalize(14),
+    borderColor: palette.strokecream,
   },
   line: {
     position: 'absolute',
@@ -404,7 +418,7 @@ const styles = StyleSheet.create({
     left: 24,
     right: 24,
     height: 4,
-    backgroundColor: '#ddd',
+    backgroundColor: palette.strokecream,
   },
   carWrap: {
     position: 'absolute',
@@ -429,131 +443,216 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   stepDotActive: {
-    backgroundColor: palette.middlegreen,
+    backgroundColor: theme.accent,
   },
   stepText: {
     textAlign: 'center',
     opacity: 0.5,
     fontSize: 9,
+    textTransform: 'none',
   },
   stepTextActive: {
     opacity: 1,
     color: palette.black,
   },
   detailCard: {
-    marginHorizontal: spacing.lg,
-    gap: spacing.md,
-    backgroundColor: palette.radish,
+    gap: hp(1.2),
+    backgroundColor: palette.white,
+    borderRadius: normalize(14),
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: wp(1.5),
+  },
+  tag: {
+    paddingHorizontal: wp(2.5),
+    paddingVertical: hp(0.45),
+    borderRadius: normalize(6),
+  },
+  tagOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(1),
+    paddingHorizontal: wp(2),
+    paddingVertical: hp(0.45),
+    borderRadius: normalize(6),
+    borderWidth: normalize(1),
+  },
+  tagText: {
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(10),
+    letterSpacing: 0.4,
+  },
+  statusDot: {
+    width: normalize(5),
+    height: normalize(5),
+    borderRadius: normalize(2.5),
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: spacing.md,
   },
-  statusPill: {
-    backgroundColor: palette.middlegreen,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
+  cardTitle: {
+    textTransform: 'none',
+    marginBottom: hp(0.5),
   },
-  statusPillText: {
-    color: palette.white,
-  },
-  contactRow: {
+  metaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: wp(1.5),
+  },
+  hr: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.strokecream,
+  },
+  contactGrid: {
+    flexDirection: 'row',
+  },
+  contactColumn: {
+    flex: 1,
+    gap: hp(0.7),
+  },
+  contactLabel: {
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(10),
+    letterSpacing: 0.8,
+    color: palette.stone,
+  },
+  contactActions: {
+    flexDirection: 'row',
+    gap: wp(1.5),
+  },
+  contactActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: wp(0.8),
+    paddingVertical: hp(0.9),
+    borderRadius: normalize(8),
+    borderWidth: normalize(1.5),
+    backgroundColor: palette.white,
   },
-  iconRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  iconPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.middlegreen,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  iconText: {
-    color: palette.white,
+  contactActionText: {
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(10),
+    letterSpacing: 0.4,
   },
   locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: palette.creme,
-    borderRadius: 14,
-    padding: spacing.sm,
+    gap: wp(2),
+    borderRadius: normalize(10),
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: wp(3),
   },
   locationIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: palette.middlegreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   locationLabel: {
-    color: palette.stone,
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(9),
     letterSpacing: 0.5,
+    color: palette.stone,
+    marginBottom: hp(0.2),
   },
-  metaRow: {
+  detailRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: wp(2),
   },
-  metaCard: {
-    flex: 1,
-    backgroundColor: palette.creme,
-    padding: spacing.sm,
-    borderRadius: 12,
-    gap: 8,
+  detailBox: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: wp(2),
+    backgroundColor: '#FAFAF8',
+    borderRadius: normalize(10),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+    paddingHorizontal: wp(2.5),
+    paddingVertical: hp(1.1),
+    minWidth: 0,
   },
-  viewBtn: {
-    backgroundColor: palette.middlegreen,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+  detailIconWrap: {
+    width: normalize(32),
+    height: normalize(32),
+    borderRadius: normalize(9),
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
-  viewText: {
-    color: palette.white,
+  detailTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: hp(0.12),
+  },
+  detailLabel: {
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(9),
+    letterSpacing: 0.5,
+    color: palette.stone,
+  },
+  detailValue: {
+    textTransform: 'none',
+    fontSize: normalize(13),
+    color: palette.black,
   },
   infoBlock: {
-    backgroundColor: palette.white,
-    borderRadius: 10,
-    padding: spacing.sm,
+    borderRadius: normalize(10),
+    padding: wp(3),
+    borderWidth: StyleSheet.hairlineWidth,
   },
   actionRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: wp(2),
     alignItems: 'center',
   },
-  tripBtn: {
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: hp(1.45),
+    paddingHorizontal: wp(4),
+    borderRadius: normalize(12),
+  },
+  primaryBtnText: {
+    color: palette.white,
+    textTransform: 'none',
+    fontSize: normalize(15),
     flex: 1,
+    textAlign: 'center',
+  },
+  primaryBtnArrow: {
+    width: normalize(30),
+    height: normalize(30),
+    borderRadius: normalize(15),
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navBtn: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalWrap: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.48)',
   },
   modalCard: {
     backgroundColor: palette.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: spacing.lg,
-    gap: spacing.md,
+    borderTopLeftRadius: normalize(28),
+    borderTopRightRadius: normalize(28),
+    padding: wp(5),
+    gap: hp(1),
+    paddingBottom: hp(5),
   },
   modalTop: {
     flexDirection: 'row',
@@ -570,7 +669,7 @@ const styles = StyleSheet.create({
   },
   modalRow: {
     flexDirection: 'row',
-    paddingVertical: spacing.xs,
+    paddingVertical: hp(0.8),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.strokecream,
   },
@@ -578,7 +677,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: palette.creme,
+    backgroundColor: palette.white,
+    borderWidth: normalize(1.5),
     alignItems: 'center',
     justifyContent: 'center',
   },

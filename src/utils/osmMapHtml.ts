@@ -137,6 +137,10 @@ export const OSM_MAP_HTML = `<!DOCTYPE html>
         weight: 4,
         opacity: 0.85,
       }).addTo(map);
+
+      if (latLngs.length >= 2) {
+        map.fitBounds(polylineLayer.getBounds(), { padding: [52, 52] });
+      }
     }
 
     window.handleRnMessage = function (message) {

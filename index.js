@@ -1,6 +1,8 @@
 import Constants from 'expo-constants';
 import { registerRootComponent } from 'expo';
 
+import './src/services/driverLocationTask';
+
 import App from './App';
 
 const IS_EXPO_GO = Constants.appOwnership === 'expo';

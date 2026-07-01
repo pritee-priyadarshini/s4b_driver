@@ -95,6 +95,9 @@ export default {
       permissions: [
         'ACCESS_COARSE_LOCATION',
         'ACCESS_FINE_LOCATION',
+        'ACCESS_BACKGROUND_LOCATION',
+        'FOREGROUND_SERVICE',
+        'FOREGROUND_SERVICE_LOCATION',
         'POST_NOTIFICATIONS',
         'android.permission.POST_NOTIFICATIONS',
       ],
@@ -120,7 +123,12 @@ export default {
         'expo-location',
         {
           locationWhenInUsePermission:
-            'Allow Saveful Driver to access your location.',
+            'Allow Saveful Driver to access your location while you are on a live shift.',
+          locationAlwaysAndWhenInUsePermission:
+            'Allow Saveful Driver to keep sharing your location in the background while you are live, so routing stays accurate until you go offline.',
+          isIosBackgroundLocationEnabled: true,
+          isAndroidBackgroundLocationEnabled: true,
+          isAndroidForegroundServiceEnabled: true,
         },
       ],
       withAndroidFirebaseNotificationManifest,

@@ -1,41 +1,38 @@
-import React, { useMemo } from 'react';
-
+import React, { useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  Dimensions
+  Pressable,
+  Modal,
+  Dimensions,
+  Platform,
 } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
-
-import { NativeStackScreenProps, } from '@react-navigation/native-stack';
-
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { CompositeScreenProps } from '@react-navigation/native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { HeroHeader } from '../components/HeroHeader';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
-
+import { useAuth } from '../store/AuthContext';
+import { AuthDriver } from '../types/auth';
 import { palette } from '../theme/colors';
-import { spacing } from '../theme/spacing';
+import { hp, normalize, wp } from '../utils/responsive';
 
 import {
   MainTabParamList,
   RootStackParamList,
 } from '../navigation/types';
-import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { CompositeScreenProps } from '@react-navigation/native';
 
-const { width, height } = Dimensions.get("window");
-const wp = (p: number) => (width * p) / 100;
-const hp = (p: number) => (height * p) / 100;
-const normalize = (size: number) => {
-  const scale = width / 375;
-  return Math.round(size * scale);
-};
+const ACCENT = palette.kale;
+const ACCENT_SOFT = '#D8EBDF';
+const ACCENT_LIGHT = '#F2F8F4';
+const { width: SCREEN_W } = Dimensions.get('window');
 
 type Props =
   CompositeScreenProps<
@@ -46,520 +43,613 @@ type Props =
 type HistoryItem = {
   id: string;
   orderId: string;
-  status:
-  | 'Assigned'
-  | 'Picked'
-  | 'Delivered';
-  restaurant: {
-    name: string;
-    address: string;
-  };
-  charity: {
-    name: string;
-    address: string;
-  };
+  status: 'Assigned' | 'Picked' | 'Delivered';
+  restaurant: { name: string; address: string };
+  charity: { name: string; address: string };
   assignedDate: string;
   assignedTime: string;
   deliveredDate: string;
   deliveredTime: string;
   driverRating: number;
   restaurantRating: number;
-  items: {
-    name: string;
-    qty: number;
-  }[];
+  items: { name: string; qty: number }[];
 };
 
 const mockHistory: HistoryItem[] = [
   {
     id: '1',
     orderId: '#S4B-1024',
-
     status: 'Delivered',
-
-    restaurant: {
-      name: 'Pizza Hut',
-      address: 'MG Road, Bangalore',
-    },
-
-    charity: {
-      name: 'Hope Foundation',
-      address: 'Indiranagar, Bangalore',
-    },
-
+    restaurant: { name: 'Pizza Hut', address: 'MG Road, Bangalore' },
+    charity: { name: 'Hope Foundation', address: 'Indiranagar, Bangalore' },
     assignedDate: '12 Apr 2026',
     assignedTime: '02:00 PM',
-
     deliveredDate: '12 Apr 2026',
     deliveredTime: '04:30 PM',
-
     driverRating: 4,
     restaurantRating: 5,
-
-    items: [
-      {
-        name: 'Bread',
-        qty: 5,
-      },
-      {
-        name: 'Rice',
-        qty: 10,
-      },
-    ],
+    items: [{ name: 'Bread', qty: 5 }, { name: 'Rice', qty: 10 }],
   },
-
   {
     id: '2',
     orderId: '#S4B-1041',
-
     status: 'Picked',
-
-    restaurant: {
-      name: 'Red Dragon',
-      address: 'Marathahalli',
-    },
-
-    charity: {
-      name: 'Smile Trust',
-      address: 'Whitefield',
-    },
-
+    restaurant: { name: 'Red Dragon', address: 'Marathahalli, Bangalore' },
+    charity: { name: 'Smile Trust', address: 'Whitefield, Bangalore' },
     assignedDate: '11 Apr 2026',
     assignedTime: '01:30 PM',
-
     deliveredDate: '11 Apr 2026',
     deliveredTime: '05:00 PM',
-
     driverRating: 5,
     restaurantRating: 4,
-
-    items: [
-      {
-        name: 'Cooked Food',
-        qty: 15,
-      },
-    ],
+    items: [{ name: 'Cooked Food', qty: 15 }],
+  },
+  {
+    id: '3',
+    orderId: '#S4B-1055',
+    status: 'Delivered',
+    restaurant: { name: 'Welspoon Hotel', address: 'Hosur Road, Bangalore' },
+    charity: { name: 'Hope Foundation', address: 'Indiranagar, Bangalore' },
+    assignedDate: '10 Apr 2026',
+    assignedTime: '05:00 PM',
+    deliveredDate: '10 Apr 2026',
+    deliveredTime: '07:15 PM',
+    driverRating: 5,
+    restaurantRating: 5,
+    items: [{ name: 'Cooked Food', qty: 5 }, { name: 'Rice', qty: 10 }],
   },
 ];
 
-export function HistoryScreen({
-  navigation,
-}: Props) {
-  useTransparentStatusBar('light');
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
-  const todayOrders = useMemo(() => {
-    return mockHistory.filter(
-      (item) =>
-        item.assignedDate ===
-        '12 Apr 2026'
-    ).length;
-  }, []);
-
-  const statusColor = (
-    status: HistoryItem['status']
-  ) => {
-    switch (status) {
-      case 'Assigned':
-        return palette.orange;
-      case 'Picked':
-        return palette.primary;
-      case 'Delivered':
-        return palette.success;
-      default:
-        return palette.stone;
-    }
+function getCharityHub(driver: AuthDriver | null) {
+  const site = driver?.profile?.sites?.[0];
+  return {
+    name: site?.name || driver?.profile?.organisation?.name || 'Your charity',
+    address: site?.address || '',
   };
+}
 
-  const renderItem = ({
-    item,
-  }: {
-    item: HistoryItem;
-  }) => {
+function itemQty(items: { qty: number }[]) {
+  return items.reduce((sum, i) => sum + i.qty, 0);
+}
 
-    const totalQty =
-      item.items.reduce(
-        (sum, current) =>
-          sum + current.qty,
-        0
-      );
+function statusLabel(status: HistoryItem['status']) {
+  if (status === 'Delivered') return 'Completed';
+  if (status === 'Picked') return 'In transit';
+  return 'Assigned';
+}
+
+function statusColor(status: HistoryItem['status']) {
+  if (status === 'Delivered') return ACCENT;
+  if (status === 'Picked') return '#C47B1A';
+  return palette.stone;
+}
+
+export function HistoryScreen({ navigation }: Props) {
+  useTransparentStatusBar('light');
+  const insets = useSafeAreaInsets();
+  const { driver } = useAuth();
+  const charityHub = useMemo(() => getCharityHub(driver), [driver]);
+  const firstName = driver?.firstName || 'Driver';
+  const [foodModal, setFoodModal] = useState<HistoryItem | null>(null);
+
+  const todayOrders = useMemo(
+    () => mockHistory.filter((item) => item.assignedDate === '12 Apr 2026').length,
+    [],
+  );
+
+  const totalKg = useMemo(
+    () => mockHistory.reduce((sum, item) => sum + itemQty(item.items), 0),
+    [],
+  );
+
+  const completedCount = useMemo(
+    () => mockHistory.filter((i) => i.status === 'Delivered').length,
+    [],
+  );
+
+  const renderHeader = () => (
+    <HeroHeader
+      source={require('../../assets/placeholder/kale-header.png')}
+      height={hp(22)}
+      style={styles.heroWrap}
+      contentStyle={styles.heroContent}
+    >
+      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <View style={styles.heroTopRow}>
+        <View style={styles.heroTextBlock}>
+          <AppText variant="caption" style={styles.heroGreeting}>
+            {greeting()}
+          </AppText>
+          <AppText variant="h6" style={styles.heroName} numberOfLines={1}>
+            {firstName}
+          </AppText>
+          <AppText variant="bodySmall" style={styles.heroOrg} numberOfLines={1}>
+            {charityHub.name}
+          </AppText>
+        </View>
+        <View style={styles.logoCircle}>
+          <AppText style={styles.logoFallback}>
+            {(charityHub.name[0] || 'S').toUpperCase()}
+          </AppText>
+        </View>
+      </View>
+      <View style={[styles.locationPill, styles.locationPillHistory]}>
+        <Ionicons name="time-outline" size={normalize(14)} color={palette.white} />
+        <AppText variant="caption" style={styles.locationPillText}>
+          Collection history · {mockHistory.length} trips
+        </AppText>
+      </View>
+    </HeroHeader>
+  );
+
+  const renderStatsCard = () => (
+    <View style={styles.statsCard}>
+      <View style={styles.statsRow}>
+        <View style={styles.statBox}>
+          <View style={[styles.statIcon, { backgroundColor: ACCENT_SOFT }]}>
+            <Ionicons name="basket-outline" size={normalize(20)} color={ACCENT} />
+          </View>
+          <AppText variant="h7" style={styles.statValue}>{totalKg} kg</AppText>
+          <AppText variant="caption" color={palette.stone} style={styles.statLabel}>
+            Food saved
+          </AppText>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statBox}>
+          <View style={[styles.statIcon, { backgroundColor: ACCENT_SOFT }]}>
+            <Ionicons name="checkmark-circle-outline" size={normalize(20)} color={ACCENT} />
+          </View>
+          <AppText variant="h7" style={styles.statValue}>{completedCount}</AppText>
+          <AppText variant="caption" color={palette.stone} style={styles.statLabel}>
+            Completed
+          </AppText>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statBox}>
+          <View style={[styles.statIcon, { backgroundColor: ACCENT_SOFT }]}>
+            <Ionicons name="today-outline" size={normalize(20)} color={ACCENT} />
+          </View>
+          <AppText variant="h7" style={styles.statValue}>{todayOrders}</AppText>
+          <AppText variant="caption" color={palette.stone} style={styles.statLabel}>
+            Today
+          </AppText>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderCard = ({ item }: { item: HistoryItem }) => {
+    const qty = itemQty(item.items);
+    const accent = statusColor(item.status);
 
     return (
-      <View style={styles.orderCard}>
-        {/* TOP */}
-        <View style={styles.orderTop}>
-          <View>
-            <AppText variant="caption" style={styles.orderLabel} >
-              ORDER ID
-            </AppText>
-
-            <AppText variant="h6">
-              {item.orderId}
-            </AppText>
-
-          </View>
-
-          <View
-            style={[
-              styles.statusPill,
-              {
-                backgroundColor:
-                  statusColor(item.status),
-              },
-            ]}
-          >
-            <AppText
-              variant="label"
-              style={{
-                color:
-                  palette.white,
-              }}
-            >
-              {item.status}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.statusBadge, { backgroundColor: ACCENT_SOFT }]}>
+            <View style={[styles.statusDot, { backgroundColor: accent }]} />
+            <AppText variant="caption" style={{ color: accent }}>
+              {statusLabel(item.status)}
             </AppText>
           </View>
-
+          <AppText variant="bodyBold" style={styles.orderIdText}>
+            {item.orderId}
+          </AppText>
         </View>
 
-        {/* RESTAURANT */}
-        <View style={styles.restaurantRow}>
-          <View style={styles.restaurantIcon}>
-            <Ionicons
-              name="restaurant-outline"
-              size={normalize(20)}
-              color={palette.primary}
-            />
-          </View>
+        <AppText variant="h6" style={styles.restaurantTitle}>
+          {item.restaurant.name}
+        </AppText>
 
-          <View style={{ flex: 1 }}>
-            <AppText variant="bodyBold"  >
-              {item.restaurant.name}
-            </AppText>
-
-            <AppText variant="bodySmall" style={styles.address}  >
-              📍{' '} {item.restaurant.address}
-            </AppText>
-          </View>
+        <View style={styles.addressRow}>
+          <Ionicons name="location-outline" size={normalize(18)} color={ACCENT} />
+          <AppText variant="bodySmall" color={palette.stone} style={styles.addressText}>
+            {item.restaurant.address}
+          </AppText>
         </View>
 
-        {/* METRICS */}
-        <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <AppText variant="caption" style={styles.metricLabel}  >
-              ITEMS
-            </AppText>
+        <View style={styles.infoRow}>
+          <View style={styles.infoBox}>
+            <Ionicons name="time-outline" size={normalize(20)} color={ACCENT} />
+            <View style={styles.infoBoxText}>
+              <AppText variant="caption" color={palette.stone}>Delivered</AppText>
+              <AppText variant="bodyBold" style={styles.infoValue} numberOfLines={1}>
+                {item.deliveredDate}
+              </AppText>
+              <AppText variant="bodySmall" color={palette.stone}>{item.deliveredTime}</AppText>
+            </View>
+          </View>
+          <Pressable style={styles.infoBox} onPress={() => setFoodModal(item)}>
+            <Ionicons name="basket-outline" size={normalize(20)} color={ACCENT} />
+            <View style={styles.infoBoxText}>
+              <AppText variant="caption" color={palette.stone}>Food collected</AppText>
+              <AppText variant="bodyBold" style={styles.infoValue}>{qty} kg</AppText>
+              <AppText variant="bodySmall" style={{ color: ACCENT }}>
+                {item.items.length} items · View
+              </AppText>
+            </View>
+          </Pressable>
+        </View>
 
-            <AppText variant="bodyBold">
-              {item.items.length}
+        <View style={styles.ratingRow}>
+          <View style={styles.ratingChip}>
+            <Ionicons name="star" size={normalize(14)} color="#E8A317" />
+            <AppText variant="bodySmall" color={palette.stone}>
+              You: <AppText variant="bodyBold">{item.driverRating}/5</AppText>
             </AppText>
           </View>
-
-          <View style={styles.metricCard}>
-            <AppText variant="caption" style={styles.metricLabel}  >
-              QUANTITY
-            </AppText>
-
-            <AppText variant="bodyBold">
-              {totalQty} kg
-            </AppText>
-          </View>
-
-          <View style={styles.metricCard}>
-            <AppText variant="caption" style={styles.metricLabel} >
-              DELIVERY
-            </AppText>
-
-            <AppText variant="bodyBold">
-              Done
+          <View style={styles.ratingChip}>
+            <Ionicons name="star" size={normalize(14)} color="#E8A317" />
+            <AppText variant="bodySmall" color={palette.stone}>
+              Restaurant: <AppText variant="bodyBold">{item.restaurantRating}/5</AppText>
             </AppText>
           </View>
         </View>
 
-        {/* BOTTOM */}
-
-        <View style={styles.bottomRow}>
-          <View>
-            <AppText variant="caption" style={styles.dateLabel} >
-              Delivered On
+        <View style={styles.charityNote}>
+          <Ionicons name="home-outline" size={normalize(16)} color={palette.stone} />
+          <AppText variant="bodySmall" color={palette.stone} style={{ flex: 1 }}>
+            Delivered to{' '}
+            <AppText variant="bodyBold" style={{ color: palette.black }}>
+              {item.charity.name}
             </AppText>
-
-            <AppText variant="bodySmall" >
-              {item.deliveredDate}{' '}•{' '} {item.deliveredTime}
-            </AppText>
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.detailsBtn}
-            onPress={() =>
-              navigation.navigate(
-                'OrderDetails',
-                {
-                  order: item,
-                }
-              )
-            }
-          >
-
-            <AppText variant="label" style={{ color: palette.primary, }}  >
-              Details
-            </AppText>
-
-            <Ionicons
-              name="arrow-forward"
-              size={normalize(16)}
-              color={palette.primary}
-            />
-          </TouchableOpacity>
+          </AppText>
         </View>
+
+        <Pressable
+          style={styles.detailsBtn}
+          onPress={() => navigation.navigate('OrderDetails', { order: item })}
+        >
+          <Ionicons name="document-text-outline" size={normalize(18)} color={ACCENT} />
+          <AppText variant="bodyBold" style={{ color: ACCENT }}>View full details</AppText>
+          <Ionicons name="chevron-forward" size={normalize(18)} color={ACCENT} />
+        </Pressable>
       </View>
     );
   };
 
   return (
-    <Screen
-      scrollable={false}
-      backgroundColor={palette.creme}
-      transparentTop
-    >
-
+    <Screen scrollable={false} backgroundColor={palette.background} transparentTop>
       <FlatList
         data={mockHistory}
         keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: hp(4),
-        }}
+        renderItem={renderCard}
         ListHeaderComponent={
           <>
-            <HeroHeader
-              source={require('../../assets/placeholder/feed-bg.png')}
-              height={hp(22)}
-              contentStyle={styles.heroContent}
-            >
-              <StatusBar style="light" />
-              <AppText variant="h3" style={styles.headerText}>
-                All Orders
+            {renderHeader()}
+            <View style={styles.mainContent}>
+              {renderStatsCard()}
+              <AppText variant="h7" style={styles.sectionTitle}>
+                Recent collections
               </AppText>
-              <AppText variant="bodyLarge" style={styles.headerSubtext}>
-                Track all completed and active deliveries
+              <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
+                {mockHistory.length} trip{mockHistory.length !== 1 ? 's' : ''} on record
               </AppText>
-            </HeroHeader>
-
-            {/* SUMMARY */}
-            <View style={styles.summaryWrapper}   >
-              <View style={styles.summaryCard}  >
-                <View style={styles.summaryBlock}  >
-                  <AppText variant="caption" style={styles.summaryLabel}  >
-                    TODAY
-                  </AppText>
-
-                  <AppText variant="h4" >
-                    {todayOrders}
-                  </AppText>
-
-                  <AppText variant="bodySmall">
-                    Orders
-                  </AppText>
-                </View>
-
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryBlock}>
-                  <AppText variant="caption" style={styles.summaryLabel}  >
-                    TOTAL
-                  </AppText>
-
-                  <AppText variant="h4" >
-                    {mockHistory.length}
-                  </AppText>
-
-                  <AppText variant="bodySmall" >
-                    Collections
-                  </AppText>
-                </View>
-              </View>
             </View>
           </>
         }
+        contentContainerStyle={{ paddingBottom: insets.bottom + hp(3) }}
+        showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ height: hp(1.6) }} />}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Ionicons name="time-outline" size={normalize(52)} color={ACCENT_SOFT} />
+            <AppText variant="bodyBold" color={palette.stone}>No collections yet</AppText>
+            <AppText variant="bodySmall" color={palette.stone} style={{ textAlign: 'center' }}>
+              Completed pickups will show up here after you deliver.
+            </AppText>
+          </View>
+        }
       />
 
+      <Modal visible={!!foodModal} transparent animationType="slide" onRequestClose={() => setFoodModal(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setFoodModal(null)}>
+          <Pressable style={styles.foodSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.sheetHandle} />
+            <AppText variant="h6" style={styles.sheetTitle}>{foodModal?.restaurant.name}</AppText>
+            <AppText variant="bodySmall" color={palette.stone} style={{ marginBottom: hp(1.5) }}>
+              {foodModal?.orderId} · Items collected
+            </AppText>
+            {foodModal?.items.map((food) => (
+              <View key={food.name} style={styles.foodRow}>
+                <AppText variant="body" style={{ flex: 1 }}>{food.name}</AppText>
+                <AppText variant="bodyBold" color={palette.stone}>{food.qty} kg</AppText>
+              </View>
+            ))}
+            <View style={styles.foodTotal}>
+              <AppText variant="bodyBold">Total</AppText>
+              <AppText variant="bodyBold">
+                {foodModal ? itemQty(foodModal.items) : 0} kg
+              </AppText>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  heroWrap: {
+    width: SCREEN_W,
+    marginLeft: 0,
+    height: hp(22),
+  },
   heroContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    flex: 1,
+    paddingHorizontal: wp(5),
+    justifyContent: 'flex-end',
+    paddingBottom: hp(3),
+    gap: hp(1.2),
   },
-  headerText: {
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: wp(3),
+  },
+  heroTextBlock: {
+    flex: 1,
+    gap: hp(0.3),
+    minWidth: 0,
+  },
+  heroGreeting: {
+    color: 'rgba(255,255,255,0.85)',
+    textTransform: 'none',
+    letterSpacing: 0.3,
+  },
+  heroName: {
     color: palette.white,
-    textAlign: 'center',
+    fontSize: normalize(26),
+    lineHeight: normalize(34),
+    textTransform: 'none',
   },
-  headerSubtext: {
-    color: palette.white,
-    opacity: 0.9,
-    textAlign: 'center',
-    marginTop: spacing.xs,
+  heroOrg: {
+    color: 'rgba(255,255,255,0.9)',
+    textTransform: 'none',
   },
-
-  summaryWrapper: {
-    marginTop: -hp(4.8),
-    marginHorizontal:
-      wp(4),
-    marginBottom: hp(2),
-  },
-
-  summaryCard: {
-    backgroundColor:
-      palette.white,
-    borderRadius: normalize(28),
-    paddingVertical:
-      hp(2.2),
-    paddingHorizontal: wp(2),
+  locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor:
-      palette.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: normalize(10),
-    shadowOffset: {
-      width: 0,
-      height: normalize(4),
-    },
-    elevation: 4,
+    alignSelf: 'flex-start',
+    gap: wp(1.5),
+    paddingVertical: hp(0.65),
+    paddingHorizontal: wp(3),
+    borderRadius: normalize(20),
+    maxWidth: '100%',
   },
-
-  summaryBlock: {
+  locationPillHistory: {
+    backgroundColor: 'rgba(0,0,0,0.28)',
+  },
+  locationPillText: {
+    color: palette.white,
+    flexShrink: 1,
+    textTransform: 'none',
+  },
+  logoCircle: {
+    width: normalize(52),
+    height: normalize(52),
+    borderRadius: normalize(26),
+    backgroundColor: palette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: { shadowColor: palette.black, shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 3 },
+    }),
+  },
+  logoFallback: {
+    color: palette.primary,
+    fontWeight: 'bold',
+    fontSize: normalize(20),
+  },
+  mainContent: {
+    paddingHorizontal: wp(4),
+    marginTop: -hp(1),
+    gap: hp(0.4),
+  },
+  statsCard: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: wp(4),
+    marginBottom: hp(1.5),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ACCENT + '30',
+    ...Platform.select({
+      ios: { shadowColor: palette.black, shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 2 },
+    }),
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statBox: {
     flex: 1,
     alignItems: 'center',
+    gap: hp(0.4),
   },
-
-  summaryDivider: {
-    width: 1,
-    height: hp(8.5),
-    backgroundColor:
-      palette.border,
-  },
-
-  summaryLabel: {
-    color: palette.stone,
-    marginBottom: hp(0.5),
-    letterSpacing: normalize(1),
-  },
-
-  orderCard: {
-    backgroundColor:
-      palette.white,
-    marginHorizontal:
-      wp(4),
-    marginBottom:
-      hp(2),
-    borderRadius: normalize(24),
-    padding: wp(4.5),
-    borderWidth: 1,
-    borderColor:
-      palette.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: normalize(8),
-    shadowOffset: {
-      width: 0,
-      height: normalize(3),
-    },
-    elevation: 3,
-  },
-
-  orderTop: {
-    flexDirection: 'row',
-    justifyContent:
-      'space-between',
+  statIcon: {
+    width: normalize(40),
+    height: normalize(40),
+    borderRadius: normalize(12),
     alignItems: 'center',
-  },
-
-  orderLabel: {
-    color: palette.stone,
-    letterSpacing: normalize(1),
-    marginBottom: hp(0.5),
-  },
-
-  statusPill: {
-    paddingHorizontal: wp(3.6),
-    paddingVertical: hp(1),
-    borderRadius: normalize(30),
-  },
-
-  restaurantRow: {
-    flexDirection: 'row',
-    marginTop: hp(2),
-    alignItems: 'center',
-  },
-
-  restaurantIcon: {
-    width: normalize(48),
-    height: normalize(48),
-    borderRadius: normalize(24),
-    backgroundColor:
-      palette.radish,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: wp(3),
   },
-
-  address: {
-    marginTop: hp(0.25),
-    color: palette.stone,
+  statValue: {
+    textTransform: 'none',
+    fontSize: normalize(18),
+    color: palette.black,
   },
-
-  metricsRow: {
+  statLabel: {
+    textTransform: 'none',
+    textAlign: 'center',
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: hp(5),
+    backgroundColor: palette.strokecream,
+  },
+  sectionTitle: {
+    textTransform: 'none',
+    marginTop: hp(1),
+    marginBottom: hp(0.2),
+  },
+  sectionSub: {
+    marginBottom: hp(1),
+    textTransform: 'none',
+  },
+  card: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: wp(4),
+    marginHorizontal: wp(4),
+    gap: hp(1.2),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+    ...Platform.select({
+      ios: { shadowColor: palette.black, shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 2 },
+    }),
+  },
+  cardHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(1.5),
+    paddingHorizontal: wp(2.5),
+    paddingVertical: hp(0.45),
+    borderRadius: normalize(8),
+  },
+  statusDot: {
+    width: normalize(7),
+    height: normalize(7),
+    borderRadius: normalize(4),
+  },
+  orderIdText: {
+    textTransform: 'none',
+    color: palette.stone,
+    fontSize: normalize(13),
+  },
+  restaurantTitle: {
+    textTransform: 'none',
+    fontSize: normalize(20),
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: wp(2),
-    marginTop: hp(2),
   },
-
-  metricCard: {
+  addressText: {
     flex: 1,
-    backgroundColor:
-      palette.radish,
-    borderRadius: normalize(18),
-    paddingVertical:
-      hp(1.8),
-    alignItems: 'center',
+    textTransform: 'none',
+    lineHeight: normalize(20),
   },
-
-  metricLabel: {
-    color: palette.stone,
-    marginBottom: hp(0.7),
-  },
-
-  bottomRow: {
-    marginTop: hp(2),
-    paddingTop: hp(1.8),
-    borderTopWidth: 1,
-    borderTopColor:
-      palette.border,
+  infoRow: {
     flexDirection: 'row',
-    justifyContent:
-      'space-between',
+    gap: wp(2.5),
+  },
+  infoBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: wp(2),
+    backgroundColor: ACCENT_LIGHT,
+    borderRadius: normalize(12),
+    padding: wp(3),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ACCENT + '25',
+  },
+  infoBoxText: {
+    flex: 1,
+    gap: hp(0.15),
+    minWidth: 0,
+  },
+  infoValue: {
+    textTransform: 'none',
+    fontSize: normalize(15),
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    gap: wp(3),
+    flexWrap: 'wrap',
+  },
+  ratingChip: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: wp(1),
   },
-
-  dateLabel: {
-    color: palette.stone,
-    marginBottom: hp(0.5),
+  charityNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: wp(2),
+    paddingTop: hp(0.2),
   },
-
   detailsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor:
-      palette.radish,
-    paddingHorizontal: wp(4),
-    paddingVertical: hp(1.2),
-    borderRadius: normalize(30),
+    justifyContent: 'center',
     gap: wp(1.5),
+    paddingVertical: hp(1.2),
+    borderRadius: normalize(12),
+    borderWidth: 1.5,
+    borderColor: ACCENT + '60',
+    backgroundColor: palette.white,
+    marginTop: hp(0.3),
+  },
+  empty: {
+    alignItems: 'center',
+    gap: hp(1.2),
+    paddingVertical: hp(8),
+    paddingHorizontal: wp(10),
+    marginHorizontal: wp(4),
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  foodSheet: {
+    backgroundColor: palette.white,
+    borderTopLeftRadius: normalize(24),
+    borderTopRightRadius: normalize(24),
+    paddingHorizontal: wp(5),
+    paddingBottom: hp(5),
+    paddingTop: hp(1),
+  },
+  sheetHandle: {
+    width: normalize(40),
+    height: normalize(4),
+    borderRadius: 2,
+    backgroundColor: palette.strokecream,
+    alignSelf: 'center',
+    marginBottom: hp(1.5),
+  },
+  sheetTitle: {
+    textTransform: 'none',
+  },
+  foodRow: {
+    flexDirection: 'row',
+    paddingVertical: hp(1),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.strokecream,
+  },
+  foodTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: hp(1.5),
+    paddingTop: hp(1.2),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.strokecream,
   },
 });

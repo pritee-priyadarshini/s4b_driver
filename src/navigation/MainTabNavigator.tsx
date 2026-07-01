@@ -25,11 +25,11 @@ const screenOptions = ({ route }: any): BottomTabNavigationOptions => ({
   headerShown: false,
   tabBarActiveTintColor: palette.primary,
   tabBarInactiveTintColor: palette.textMuted,
-  tabBarStyle: {
+    tabBarStyle: {
     height: 76,
     paddingBottom: 12,
     paddingTop: 10,
-    backgroundColor: palette.surface,
+    backgroundColor: palette.background,
     borderTopColor: palette.strokecream,
   },
   tabBarLabelStyle: {
