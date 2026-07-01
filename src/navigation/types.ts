@@ -1,8 +1,9 @@
-import { HistoryOrder } from "../types/history";
+import { NavigatorScreenParams } from '@react-navigation/native';
+import { HistoryOrder } from '../types/history';
 
 export type RootStackParamList = {
   Auth: undefined;
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
 
   PickupConfirm: {
     pickup: any;

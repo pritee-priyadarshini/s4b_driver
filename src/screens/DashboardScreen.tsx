@@ -1,21 +1,24 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import {
     View,
     FlatList,
     StyleSheet,
     TouchableOpacity,
-    ImageBackground,
     Modal,
     Dimensions,
     Linking,
-    Animated,
+    Platform,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
+import { HeroHeader } from '../components/HeroHeader';
+import { Card } from '../components/Card';
+import { OsmMapView } from '../components/OsmMapView';
+import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -114,36 +117,7 @@ export function DashboardScreen() {
         return selectedItems.reduce((sum, item) => sum + (item.qty || 0), 0);
     }, [selectedItems]);
 
-    const [mapReady, setMapReady] = useState(false);
-
-    const mapRef = useRef<MapView>(null);
-
-    /* MAP */
-    useEffect(() => {
-        if (!mapReady) return;
-        if (!mapRef.current) return;
-        if (!data.length) return;
-
-        const timer = setTimeout(() => {
-            mapRef.current?.fitToCoordinates(
-                data.map((item) => ({
-                    latitude: item.lat,
-                    longitude: item.lng,
-                })),
-                {
-                    edgePadding: {
-                        top: 80,
-                        right: 80,
-                        bottom: 80,
-                        left: 80,
-                    },
-                    animated: true,
-                }
-            );
-        }, 1000);
-
-        return () => clearTimeout(timer);
-    }, [mapReady, data]);
+    useTransparentStatusBar('light');
 
     useFocusEffect(
         useCallback(() => {
@@ -211,16 +185,18 @@ export function DashboardScreen() {
 
     const listRef = useRef<FlatList>(null);
 
-    const indexMap = useMemo(() => {
-        const map: Record<string, number> = {};
-        sortedData.forEach((item, index) => {
-            map[item.id] = index;
-        });
-        return map;
-    }, [sortedData]);
+    const cardElevation = Platform.select({
+        ios: {
+            shadowColor: palette.black,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.07,
+            shadowRadius: 10,
+        },
+        android: { elevation: 3 },
+    });
 
     const renderItem = ({ item }: { item: typeof mockPickups[number]; }) => (
-        <View style={styles.card}>
+        <View style={[styles.card, cardElevation]}>
             {/* TOP */}
             <View style={styles.rowBetween}>
                 <View>
@@ -346,14 +322,19 @@ export function DashboardScreen() {
 
     const Header = () => (
         <View>
-            <ImageBackground
+            <HeroHeader
                 source={require('../../assets/placeholder/feed-bg.png')}
-                style={styles.headerBg}
+                height={hp(20)}
+                contentStyle={styles.heroContent}
             >
+                <StatusBar style="light" />
                 <AppText variant="h4" style={styles.headerText}>
                     My Pickups
                 </AppText>
-            </ImageBackground>
+                <AppText variant="bodySmall" style={styles.headerSubtext}>
+                    {sortedData.length} assigned today
+                </AppText>
+            </HeroHeader>
 
             {/* AVAILABILITY */}
             <View style={styles.availabilityRow}>
@@ -421,43 +402,21 @@ export function DashboardScreen() {
 
     const MapViewComponent = () => (
         <View>
-            <View style={{ height: hp(55), borderRadius: normalize(16), overflow: 'hidden' }}>
-                <MapView
-                    ref={mapRef}
-                    style={{ flex: 1 }}
-                    initialRegion={{
-                        latitude: 12.9716,
-                        longitude: 77.5946,
-                        latitudeDelta: 0.15,
-                        longitudeDelta: 0.15,
-                    }}
-                    onMapReady={() => {
-                        setMapReady(true);
-                    }}
-                >
-                    {sortedData.map((item) => (
-                        <Marker
-                            key={item.id}
-                            coordinate={{
-                                latitude: item.lat,
-                                longitude: item.lng,
-                            }}
-                            title={item.title}
-                            description={item.address}
-                            onPress={() => {
-                                const index = indexMap[item.id];
-
-                                if (index !== undefined) {
-                                    listRef.current?.scrollToIndex({
-                                        index,
-                                        animated: true,
-                                    });
-                                }
-                            }}
-                        />
-                    ))}
-                </MapView>
-            </View>
+            <Card style={styles.mapCard}>
+                <OsmMapView
+                    style={styles.map}
+                    markers={sortedData.map((item) => ({
+                        latitude: item.lat,
+                        longitude: item.lng,
+                    }))}
+                    initialCenter={
+                        sortedData[0]
+                            ? { latitude: sortedData[0].lat, longitude: sortedData[0].lng }
+                            : undefined
+                    }
+                    initialZoom={12}
+                />
+            </Card>
 
             {/* HORIZONTAL CARD LIST */}
             <FlatList
@@ -473,7 +432,7 @@ export function DashboardScreen() {
     );
 
     return (
-        <Screen scrollable={false} backgroundColor={palette.creme}>
+        <Screen scrollable={false} backgroundColor={palette.creme} transparentTop>
             <View>
                 {viewMode === 'list' ? (
                     <FlatList
@@ -561,12 +520,28 @@ export function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-    headerBg: {
-        height: hp(18),
+    heroContent: {
         justifyContent: 'center',
         alignItems: 'center',
+        paddingHorizontal: spacing.lg,
     },
     headerText: { color: palette.white },
+    headerSubtext: {
+        color: palette.white,
+        opacity: 0.9,
+        marginTop: spacing.xs,
+    },
+    mapCard: {
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.md,
+        padding: 0,
+        overflow: 'hidden',
+        borderRadius: 20,
+    },
+    map: {
+        height: hp(40),
+        width: '100%',
+    },
 
     toggleWrapper: {
         flexDirection: 'row',

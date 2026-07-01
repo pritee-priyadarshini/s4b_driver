@@ -23,8 +23,9 @@ import { useSubmitLock } from '../hooks/useSubmitLock';
 import { profileService } from '../services/profileService';
 import { AuthDriver } from '../types/auth';
 import { showErrorAlert, showSuccessAlert } from '../utils/apiError';
+import { NotificationPermissionSettings } from '../components/NotificationPermissionSettings';
 
-type SectionKey = 'personal' | 'contact' | 'driver';
+type SectionKey = 'personal' | 'contact' | 'notifications' | 'driver';
 
 type ProfileFormData = {
   firstName: string;
@@ -306,7 +307,7 @@ export function ProfileScreen() {
         </View>
 
         <View style={styles.content}>
-          {(['personal', 'contact', 'driver'] as SectionKey[]).map((key) => (
+          {(['personal', 'contact', 'notifications', 'driver'] as SectionKey[]).map((key) => (
             <View key={key}>
               <Pressable
                 style={styles.accordionHeader}
@@ -317,7 +318,9 @@ export function ProfileScreen() {
                     ? 'Personal Details'
                     : key === 'contact'
                       ? 'Contact Details'
-                      : 'Driver Details'}
+                      : key === 'notifications'
+                        ? 'Notifications'
+                        : 'Driver Details'}
                 </AppText>
 
                 <Ionicons
@@ -391,6 +394,8 @@ export function ProfileScreen() {
                       </View>
                     </>
                   )}
+
+                  {key === 'notifications' && <NotificationPermissionSettings />}
 
                   {key === 'driver' && (
                     <>

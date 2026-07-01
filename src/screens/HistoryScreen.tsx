@@ -4,7 +4,6 @@ import {
   View,
   StyleSheet,
   FlatList,
-  ImageBackground,
   TouchableOpacity,
   Dimensions
 } from 'react-native';
@@ -13,8 +12,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { NativeStackScreenProps, } from '@react-navigation/native-stack';
 
+import { StatusBar } from 'expo-status-bar';
+
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
+import { HeroHeader } from '../components/HeroHeader';
+import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -142,6 +145,7 @@ const mockHistory: HistoryItem[] = [
 export function HistoryScreen({
   navigation,
 }: Props) {
+  useTransparentStatusBar('light');
 
   const todayOrders = useMemo(() => {
     return mockHistory.filter(
@@ -315,6 +319,7 @@ export function HistoryScreen({
     <Screen
       scrollable={false}
       backgroundColor={palette.creme}
+      transparentTop
     >
 
       <FlatList
@@ -327,21 +332,19 @@ export function HistoryScreen({
         }}
         ListHeaderComponent={
           <>
-            {/* HERO */}
-            <ImageBackground
+            <HeroHeader
               source={require('../../assets/placeholder/feed-bg.png')}
-              style={styles.headerBg}
+              height={hp(22)}
+              contentStyle={styles.heroContent}
             >
-              <View style={styles.headerOverlay} >
-                <AppText variant="h3" style={styles.headerText}  >
-                  All Orders
-                </AppText>
-
-                <AppText variant="bodyLarge" style={styles.headerSubtext} >
-                  Track all completed and active deliveries
-                </AppText>
-              </View>
-            </ImageBackground>
+              <StatusBar style="light" />
+              <AppText variant="h3" style={styles.headerText}>
+                All Orders
+              </AppText>
+              <AppText variant="bodyLarge" style={styles.headerSubtext}>
+                Track all completed and active deliveries
+              </AppText>
+            </HeroHeader>
 
             {/* SUMMARY */}
             <View style={styles.summaryWrapper}   >
@@ -385,28 +388,20 @@ export function HistoryScreen({
 }
 
 const styles = StyleSheet.create({
-
-  headerBg: {
-    height: hp(22),
-  },
-
-  headerOverlay: {
-    flex: 1,
+  heroContent: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: hp(3),
-    paddingHorizontal: wp(6),
+    paddingHorizontal: spacing.lg,
   },
-
   headerText: {
     color: palette.white,
+    textAlign: 'center',
   },
-
   headerSubtext: {
     color: palette.white,
     opacity: 0.9,
-    marginTop: hp(0.5),
     textAlign: 'center',
+    marginTop: spacing.xs,
   },
 
   summaryWrapper: {

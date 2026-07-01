@@ -1,106 +1,84 @@
-import React, {
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  Linking,
+  Pressable,
   ImageBackground,
+  Modal,
+  Alert,
+  Linking,
+  Animated,
+  Dimensions,
   Platform,
-} from "react-native";
+} from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-import MapView, {
-  Marker,
-  Polyline,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
+import { Screen } from '../components/Screen';
+import { AppText } from '../components/AppText';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { OsmMapView } from '../components/OsmMapView';
 
-import BottomSheet from "@gorhom/bottom-sheet";
-
-import { Ionicons } from "@expo/vector-icons";
-
-import { AppText } from "../components/AppText";
-import { Button } from "../components/Button";
-
-import { palette } from "../theme/colors";
-import { spacing } from "../theme/spacing";
-
-const { width, height } =
-  Dimensions.get("window");
+import { palette } from '../theme/colors';
+import { spacing } from '../theme/spacing';
+import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 
 type RouteStatus =
-  | "Assigned"
-  | "Heading to Pickup"
-  | "Picked Up"
-  | "Delivered";
+  | 'Assigned'
+  | 'Enroute'
+  | 'Arrived'
+  | 'Picked'
+  | 'Verified'
+  | 'Completed';
+
+const STEPS: RouteStatus[] = [
+  'Assigned',
+  'Enroute',
+  'Arrived',
+  'Picked',
+  'Verified',
+  'Completed',
+];
 
 const MOCK_PICKUP = {
-  id: "S4B-2094",
-  status: "Heading to Pickup" as RouteStatus,
-  progress: 0.42,
+  id: 'S4B-2094',
+  status: 'Enroute' as RouteStatus,
   eta: 18,
-  distance: 6.4,
-  servings: 42,
+  distance: '6.4 km',
   restaurant: {
-    name: "Fresh Bowl Kitchen",
-    address: "Koramangala 5th Block, Bangalore",
-    phone: "+91 9876543210",
+    name: 'Fresh Bowl Kitchen',
+    address: 'Koramangala 5th Block, Bangalore',
+    phone: '+91 9876543210',
     latitude: 12.9352,
     longitude: 77.6245,
   },
-
   charity: {
-    name: "Hope Food Foundation",
-    address: "Indiranagar, Bangalore",
-    phone: "+91 9123456780",
+    name: 'Hope Food Foundation',
+    address: 'Indiranagar, Bangalore',
+    phone: '+91 9123456780',
     latitude: 12.9716,
     longitude: 77.5946,
   },
-
-  driver: {
-    name: "Raju Kumar",
-    vehicle: "KA 05 MQ 2211",
-    rating: 4.8,
-  },
-
+  pickupDate: '30/06/2026',
+  pickupTime: '2:00 PM – 4:00 PM',
+  instructions: 'Needs refrigeration',
   items: [
-    {
-      name: "Cooked Rice",
-      qty: 12,
-    },
-
-    {
-      name: "Bread",
-      qty: 8,
-    },
-
-    {
-      name: "Dal Curry",
-      qty: 15,
-    },
-
-    {
-      name: "Packed Meals",
-      qty: 7,
-    },
+    { name: 'Cooked Rice', qty: 12 },
+    { name: 'Bread', qty: 8 },
+    { name: 'Dal Curry', qty: 15 },
+    { name: 'Packed Meals', qty: 7 },
   ],
 };
 
-export function RouteScreen() {
+function getStepIndex(status: RouteStatus) {
+  return STEPS.indexOf(status);
+}
 
-  const sheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(
-    () => ["18%", "48%", "88%"],
-    []
-  );
-  const [live] = useState(true);
+export function RouteScreen() {
+  useTransparentStatusBar('light');
 
   const pickup = MOCK_PICKUP;
+  const currentStep = getStepIndex(pickup.status);
 
   const restaurant = {
     latitude: pickup.restaurant.latitude,
@@ -112,626 +90,496 @@ export function RouteScreen() {
     longitude: pickup.charity.longitude,
   };
 
-  const driverLocation = {
-    latitude: restaurant.latitude + (charity.latitude - restaurant.latitude) * pickup.progress,
-    longitude: restaurant.longitude + (charity.longitude - restaurant.longitude) * pickup.progress,
+  const [carCoordinate, setCarCoordinate] = useState(restaurant);
+
+  useEffect(() => {
+    if (pickup.status !== 'Enroute') return;
+
+    const route = [
+      restaurant,
+      {
+        latitude: restaurant.latitude + (charity.latitude - restaurant.latitude) * 0.25,
+        longitude: restaurant.longitude + (charity.longitude - restaurant.longitude) * 0.25,
+      },
+      {
+        latitude: restaurant.latitude + (charity.latitude - restaurant.latitude) * 0.5,
+        longitude: restaurant.longitude + (charity.longitude - restaurant.longitude) * 0.5,
+      },
+      {
+        latitude: restaurant.latitude + (charity.latitude - restaurant.latitude) * 0.75,
+        longitude: restaurant.longitude + (charity.longitude - restaurant.longitude) * 0.75,
+      },
+      charity,
+    ];
+
+    let index = 0;
+    const timer = setInterval(() => {
+      index += 1;
+      if (index >= route.length) {
+        clearInterval(timer);
+        return;
+      }
+      setCarCoordinate(route[index]);
+    }, 1200);
+
+    return () => clearInterval(timer);
+  }, [pickup.status]);
+
+  const trackerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const segment = (Dimensions.get('window').width - 120) / (STEPS.length - 1);
+    Animated.spring(trackerAnim, {
+      toValue: segment * currentStep,
+      useNativeDriver: true,
+    }).start();
+  }, [currentStep, trackerAnim]);
+
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const totalQty = useMemo(
+    () => pickup.items.reduce((sum, item) => sum + item.qty, 0),
+    [pickup.items],
+  );
+
+  const makeCall = async (phone?: string | null) => {
+    if (!phone) {
+      Alert.alert('Unavailable', 'Phone number not available');
+      return;
+    }
+    const clean = phone.replace(/[^+\d]/g, '');
+    try {
+      await Linking.openURL(`tel:${clean}`);
+    } catch {
+      Alert.alert('Error', 'Unable to open dialer');
+    }
   };
 
-  const totalQty = useMemo(() => {
-    return pickup.items.reduce(
-      (sum, item) =>
-        sum + item.qty,
-      0
-    );
-
-  }, []);
+  const sendMessage = async (phone?: string | null) => {
+    if (!phone) return;
+    await Linking.openURL(`sms:${phone}`);
+  };
 
   const openNavigation = () => {
-    const url = Platform.OS === "ios"
-      ? `maps://app?daddr=${charity.latitude},${charity.longitude}`
-      : `google.navigation:q=${charity.latitude},${charity.longitude}`;
+    const url =
+      Platform.OS === 'ios'
+        ? `maps://app?daddr=${charity.latitude},${charity.longitude}`
+        : `google.navigation:q=${charity.latitude},${charity.longitude}`;
     Linking.openURL(url);
   };
 
   return (
-    <View style={styles.container}>
-      {/* MAP */}
-      <MapView
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        initialRegion={{
-          latitude: restaurant.latitude,
-          longitude: restaurant.longitude,
-          latitudeDelta: 0.08,
-          longitudeDelta: 0.08,
-        }}
-        showsUserLocation
-        showsMyLocationButton
+    <Screen backgroundColor={palette.creme} contentStyle={styles.container}>
+      <ImageBackground
+        source={require('../../assets/placeholder/feed-bg.png')}
+        style={styles.headerBg}
+        resizeMode="cover"
       >
-
-        {/* ROUTE */}
-        <Polyline
-          coordinates={[
-            restaurant,
-            charity,
-          ]}
-          strokeWidth={5}
-          strokeColor={palette.primary}
-        />
-
-        {/* DRIVER */}
-        <Marker coordinate={driverLocation}>
-          <View style={styles.driverMarker}>
-            <Ionicons
-              name="car"
-              size={18}
-              color={palette.white}
-            />
+        <AppText variant="caption" style={styles.heroLabel}>
+          ACTIVE DELIVERY
+        </AppText>
+        <AppText variant="h4" style={styles.headerTitle}>
+          {pickup.id}
+        </AppText>
+        <View style={styles.heroMetrics}>
+          <View style={styles.heroMetric}>
+            <AppText variant="caption" style={styles.metricCaption}>
+              ETA
+            </AppText>
+            <AppText variant="h5" style={styles.white}>
+              {pickup.eta}m
+            </AppText>
           </View>
-        </Marker>
-
-        {/* RESTAURANT */}
-        <Marker coordinate={restaurant}>
-          <View style={styles.pickupMarker}>
-            <Ionicons
-              name="restaurant"
-              size={18}
-              color={palette.white}
-            />
+          <View style={styles.heroMetric}>
+            <AppText variant="caption" style={styles.metricCaption}>
+              DISTANCE
+            </AppText>
+            <AppText variant="h5" style={styles.white}>
+              {pickup.distance}
+            </AppText>
           </View>
-        </Marker>
-
-        {/* CHARITY */}
-        <Marker coordinate={charity}>
-          <View style={styles.dropMarker} >
-            <Ionicons
-              name="home"
-              size={18}
-              color={palette.white}
-            />
-          </View>
-        </Marker>
-
-      </MapView>
-
-      {/* TOP HEADER */}
-      <View style={styles.topOverlay}>
-        <ImageBackground
-          source={require("../../assets/placeholder/feed-bg.png")}
-          style={styles.routeHero}
-          imageStyle={{ borderRadius: 24, }}
-        >
-          <View style={styles.heroTop}>
-            <View>
-              <AppText variant="caption" style={styles.heroLabel} >
-                ACTIVE DELIVERY
-              </AppText>
-
-              <AppText variant="h4" style={styles.white}>
-                {pickup.id}
-              </AppText>
-
-            </View>
-
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} ></View>
-              <AppText variant="label" style={styles.white} >
-                LIVE
-              </AppText>
-            </View>
-          </View>
-
-          <View style={styles.heroBottom}>
-            <View style={styles.heroMetric}>
-              <AppText variant="caption" style={styles.metricCaption}>
-                ETA
-              </AppText>
-
-              <AppText variant="h5" style={styles.white}>
-                {pickup.eta}m
-              </AppText>
-            </View>
-
-            <View style={styles.heroMetric}>
-              <AppText variant="caption" style={styles.metricCaption}>
-                DISTANCE
-              </AppText>
-
-              <AppText variant="h5" style={styles.white}>
-                {pickup.distance}km
-              </AppText>
-            </View>
-
-            <View style={styles.heroMetric} >
-
-              <AppText variant="caption" style={styles.metricCaption}>
-                FOOD
-              </AppText>
-
-              <AppText variant="h5" style={styles.white}>
-                {totalQty}kg
-              </AppText>
-            </View>
-          </View>
-        </ImageBackground>
-      </View>
-
-      {/* BOTTOM SHEET */}
-
-      <BottomSheet
-        ref={sheetRef}
-        index={1}
-        snapPoints={snapPoints}
-        enablePanDownToClose={false}
-        backgroundStyle={{ backgroundColor: palette.creme, }}
-        handleIndicatorStyle={{ backgroundColor: palette.border, }}
-      >
-        <View style={styles.sheet}>
-          {/* STATUS */}
-          <View style={styles.statusCard} >
-            <View>
-              <AppText variant="caption" style={styles.label} >
-                CURRENT STATUS
-              </AppText>
-
-              <View style={styles.statusPill} >
-
-                <AppText variant="label" style={{ color: palette.white, }} >
-                  {pickup.status}
-                </AppText>
-              </View>
-            </View>
-            <View style={styles.progressCircle}>
-              <AppText variant="bodyBold" >
-                {Math.round(pickup.progress * 100)} %
-              </AppText>
-            </View>
-          </View>
-
-          {/* LOCATION CARDS */}
-          <View style={styles.locationCard}>
-            <View style={styles.locationIcon}>
-              <Ionicons
-                name="restaurant"
-                size={18}
-                color={palette.white}
-              />
-            </View>
-
-            <View style={{ flex: 1, }}>
-              <AppText variant="label" style={styles.locationLabel}  >
-                PICKUP POINT
-              </AppText>
-
-              <AppText variant="bodyBold"  >
-                {pickup.restaurant.name}
-              </AppText>
-
-              <AppText variant="bodySmall" style={styles.locationSub}   >
-                📍{" "}{pickup.restaurant.address}
-              </AppText>
-            </View>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() =>
-                Linking.openURL(
-                  `tel:${pickup.restaurant.phone}`
-                )
-              }
-            >
-
-              <Ionicons
-                name="call"
-                size={18}
-                color={palette.primary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.locationCard} >
-            <View style={[styles.locationIcon, { backgroundColor: palette.middlegreen, },]} >
-              <Ionicons
-                name="home"
-                size={18}
-                color={palette.white}
-              />
-            </View>
-
-            <View style={{ flex: 1, }}  >
-              <AppText variant="label" style={styles.locationLabel}  >
-                DELIVERY POINT
-              </AppText>
-
-              <AppText variant="bodyBold"  >
-                {pickup.charity.name}
-              </AppText>
-
-              <AppText variant="bodySmall" style={styles.locationSub} >
-                📍{" "}{pickup.charity.address}
-              </AppText>
-            </View>
-
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() =>
-                Linking.openURL(
-                  `tel:${pickup.charity.phone}`
-                )
-              }
-            >
-
-              <Ionicons
-                name="call"
-                size={18}
-                color={palette.primary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* FOOD DETAILS */}
-          <View style={styles.foodCard}>
-            <View style={styles.foodHeader}>
-              <AppText variant="bodyBold" >
-                Food Manifest
-              </AppText>
-
-              <View style={styles.qtyBadge} >
-                <AppText variant="label" style={{ color: palette.white, }}>
-                  {totalQty}kg
-                </AppText>
-              </View>
-            </View>
-
-            {pickup.items.map(
-              (item) => (
-                <View
-                  key={item.name}
-                  style={styles.foodRow}
-                >
-
-                  <View style={styles.foodLeft}  >
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color={palette.success}
-                    />
-                    <AppText variant="bodySmall"  >
-                      {item.name}
-                    </AppText>
-                  </View>
-
-                  <AppText variant="bodyBold">
-                    {item.qty}kg
-                  </AppText>
-                </View>
-              )
-            )}
-          </View>
-
-          {/* DRIVER */}
-          <View style={styles.driverCard} >
-            <View style={styles.driverAvatar}  >
-              <AppText variant="h6" style={styles.white}>
-                RK
-              </AppText>
-
-            </View>
-
-            <View style={{  flex: 1, }}  >
-              <AppText  variant="bodyBold" >
-                { pickup.driver  .name }
-              </AppText>
-
-              <AppText  variant="bodySmall" >
-                {  pickup.driver   .vehicle  }
-              </AppText>
-            </View>
-
-            <View  style={ styles.ratingPill  }  >
-              <Ionicons
-                name="star"
-                size={14}
-                color={   palette.white  }
-              />
-
-              <AppText  variant="label" style={{  color:  palette.white,  }} >
-                {  pickup.driver.rating }
-              </AppText>
-            </View>
-          </View>
-
-          {/* CTA */}
-          <View style={styles.actionRow } >
-            <Button
-              label="Continue Trip"
-              style={ styles.tripBtn}
-              onPress={() => { }}
-            />
-
-            <TouchableOpacity
-              style={styles.navBtn }
-              onPress={ openNavigation }
-            >
-
-              <Ionicons
-                name="navigate"
-                size={22}
-                color={ palette.white }
-              />
-            </TouchableOpacity>
+          <View style={styles.heroMetric}>
+            <AppText variant="caption" style={styles.metricCaption}>
+              FOOD
+            </AppText>
+            <AppText variant="h5" style={styles.white}>
+              {totalQty}kg
+            </AppText>
           </View>
         </View>
-      </BottomSheet>
-    </View>
+      </ImageBackground>
+
+      <Card style={styles.mapCard}>
+        <OsmMapView
+          style={styles.map}
+          markers={[carCoordinate, restaurant, charity]}
+          polyline={[restaurant, charity]}
+          initialCenter={restaurant}
+          initialZoom={13}
+        />
+      </Card>
+
+      <Card style={styles.trackCard}>
+        <View style={styles.line} />
+        <Animated.View
+          style={[
+            styles.carWrap,
+            { transform: [{ translateX: trackerAnim }] },
+          ]}
+        >
+          <MaterialCommunityIcons name="car-sports" size={34} color={palette.primary} />
+        </Animated.View>
+        <View style={styles.stepRow}>
+          {STEPS.map((step, index) => {
+            const active = index <= currentStep;
+            return (
+              <View key={step} style={styles.stepItem}>
+                <View style={[styles.stepDot, active && styles.stepDotActive]} />
+                <AppText
+                  variant="bodySmall"
+                  style={[styles.stepText, active && styles.stepTextActive]}
+                >
+                  {step}
+                </AppText>
+              </View>
+            );
+          })}
+        </View>
+      </Card>
+
+      <Card style={styles.detailCard}>
+        <View style={styles.topRow}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="bodyBold">
+              Pickup: {pickup.restaurant.name}
+            </AppText>
+            <AppText variant="bodySmall">📍 {pickup.restaurant.address}</AppText>
+            <AppText variant="bodyBold">{pickup.distance}</AppText>
+          </View>
+          <View style={styles.statusPill}>
+            <AppText variant="bodyBold" style={styles.statusPillText}>
+              {pickup.status}
+            </AppText>
+          </View>
+        </View>
+
+        <View style={styles.contactRow}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="bodySmall">Restaurant contact</AppText>
+          </View>
+          <View style={styles.iconRow}>
+            <Pressable style={styles.iconPill} onPress={() => makeCall(pickup.restaurant.phone)}>
+              <Ionicons name="call-outline" size={18} color={palette.white} />
+              <AppText variant="bodyBold" style={styles.iconText}>Call</AppText>
+            </Pressable>
+            <Pressable style={styles.iconPill} onPress={() => sendMessage(pickup.restaurant.phone)}>
+              <Ionicons name="chatbubble-outline" size={18} color={palette.white} />
+              <AppText variant="bodyBold" style={styles.iconText}>Message</AppText>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.locationCard}>
+          <View style={styles.locationIcon}>
+            <Ionicons name="home" size={18} color={palette.white} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="label" style={styles.locationLabel}>
+              DELIVERY POINT
+            </AppText>
+            <AppText variant="bodyBold">{pickup.charity.name}</AppText>
+            <AppText variant="bodySmall">📍 {pickup.charity.address}</AppText>
+          </View>
+          <Pressable style={styles.roundIconBtn} onPress={() => makeCall(pickup.charity.phone)}>
+            <Ionicons name="call" size={18} color={palette.primary} />
+          </Pressable>
+        </View>
+
+        <View style={styles.metaRow}>
+          <Pressable style={styles.metaCard} onPress={() => setModalVisible(true)}>
+            <AppText variant="bodyBold">Items</AppText>
+            <View style={styles.viewBtn}>
+              <AppText variant="bodyBold" style={styles.viewText}>View</AppText>
+            </View>
+          </Pressable>
+          <View style={styles.metaCard}>
+            <AppText variant="bodyBold">Pickup Date</AppText>
+            <AppText variant="bodySmall">{pickup.pickupDate}</AppText>
+          </View>
+          <View style={styles.metaCard}>
+            <AppText variant="bodyBold">Pickup Time</AppText>
+            <AppText variant="bodySmall">{pickup.pickupTime}</AppText>
+          </View>
+        </View>
+
+        <View style={styles.infoBlock}>
+          <AppText variant="caption">Instructions: {pickup.instructions}</AppText>
+        </View>
+
+        <View style={styles.actionRow}>
+          <Button label="Continue Trip" style={styles.tripBtn} onPress={() => {}} />
+          <Pressable style={styles.navBtn} onPress={openNavigation}>
+            <Ionicons name="navigate" size={22} color={palette.white} />
+          </Pressable>
+        </View>
+      </Card>
+
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <View style={styles.modalWrap}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalTop}>
+              <AppText variant="subheading">Food Manifest</AppText>
+              <Pressable style={styles.closeBtn} onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={20} color={palette.black} />
+              </Pressable>
+            </View>
+            {pickup.items.map((item) => (
+              <View key={item.name} style={styles.modalRow}>
+                <AppText variant="bodyBold" style={{ flex: 1 }}>{item.name}</AppText>
+                <AppText variant="bodySmall">{item.qty}kg</AppText>
+              </View>
+            ))}
+            <AppText variant="bodyBold">Total Quantity: {totalQty} kg</AppText>
+          </View>
+        </View>
+      </Modal>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-
   container: {
-    flex: 1,
-    backgroundColor: palette.creme,
+    gap: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-
-  map: {
-    width,
-    height,
+  headerBg: {
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
   },
-
-  topOverlay: {
-    position: "absolute",
-    top: 55,
-    left: spacing.md,
-    right: spacing.md,
-  },
-
-  routeHero: {
-    padding: spacing.lg,
-    overflow: "hidden",
-  },
-
-  heroTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
   heroLabel: {
     color: palette.white,
     opacity: 0.9,
     letterSpacing: 1,
   },
-
+  headerTitle: {
+    color: palette.white,
+  },
   white: {
     color: palette.white,
   },
-
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#00000030",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 30,
-    gap: 6,
+  heroMetrics: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    marginTop: spacing.sm,
   },
-
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#4ADE80",
-  },
-
-  heroBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: spacing.xl,
-  },
-
   heroMetric: {
-    alignItems: "center",
+    alignItems: 'center',
   },
-
   metricCaption: {
     color: palette.white,
-    opacity: 0.8,
+    opacity: 0.85,
+    letterSpacing: 0.5,
   },
-
-  driverMarker: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: palette.white,
-  },
-
-  pickupMarker: {
-    width: 40,
-    height: 40,
+  mapCard: {
+    marginHorizontal: spacing.lg,
+    padding: 0,
+    overflow: 'hidden',
     borderRadius: 20,
-    backgroundColor: palette.chilli,
-    justifyContent: "center",
-    alignItems: "center",
   },
-
-  dropMarker: {
+  map: {
+    height: 240,
+    width: '100%',
+  },
+  trackCard: {
+    marginHorizontal: spacing.lg,
+    padding: spacing.lg,
+    overflow: 'hidden',
+  },
+  line: {
+    position: 'absolute',
+    top: 34,
+    left: 24,
+    right: 24,
+    height: 4,
+    backgroundColor: '#ddd',
+  },
+  carWrap: {
+    position: 'absolute',
+    top: 18,
+    left: 20,
+    zIndex: 10,
+  },
+  stepRow: {
+    marginTop: 40,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  stepItem: {
+    width: 52,
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ccc',
+  },
+  stepDotActive: {
+    backgroundColor: palette.middlegreen,
+  },
+  stepText: {
+    textAlign: 'center',
+    opacity: 0.5,
+    fontSize: 9,
+  },
+  stepTextActive: {
+    opacity: 1,
+    color: palette.black,
+  },
+  detailCard: {
+    marginHorizontal: spacing.lg,
+    gap: spacing.md,
+    backgroundColor: palette.radish,
+  },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  statusPill: {
+    backgroundColor: palette.middlegreen,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+  },
+  statusPillText: {
+    color: palette.white,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  iconRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  iconPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.middlegreen,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  iconText: {
+    color: palette.white,
+  },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: palette.creme,
+    borderRadius: 14,
+    padding: spacing.sm,
+  },
+  locationIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: palette.middlegreen,
-    justifyContent: "center",
-    alignItems: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  sheet: {
-    flex: 1,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-
-  statusCard: {
-    backgroundColor: palette.white,
-    borderRadius: 22,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  label: {
+  locationLabel: {
     color: palette.stone,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
-
-  statusPill: {
-    marginTop: spacing.sm,
-    backgroundColor: palette.primary,
-    alignSelf: "flex-start",
+  metaRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  metaCard: {
+    flex: 1,
+    backgroundColor: palette.creme,
+    padding: spacing.sm,
+    borderRadius: 12,
+    gap: 8,
+    alignItems: 'center',
+  },
+  viewBtn: {
+    backgroundColor: palette.middlegreen,
+    borderRadius: 999,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
+    paddingVertical: 6,
   },
-
-  progressCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: palette.radish,
-    justifyContent: "center",
-    alignItems: "center",
+  viewText: {
+    color: palette.white,
   },
-
-  locationCard: {
-    flexDirection: "row",
-    alignItems: "center",
+  infoBlock: {
     backgroundColor: palette.white,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: spacing.md,
-    gap: spacing.md,
+    borderRadius: 10,
+    padding: spacing.sm,
   },
-
-  locationIcon: {
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  tripBtn: {
+    flex: 1,
+  },
+  navBtn: {
     width: 52,
     height: 52,
     borderRadius: 26,
     backgroundColor: palette.primary,
-    justifyContent: "center",
-    alignItems: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  locationLabel: {
-    color: palette.stone,
-    marginBottom: 4,
-    letterSpacing: 1,
+  modalWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
-
-  locationSub: {
-    marginTop: 4,
-    color: palette.stone,
-  },
-
-  iconBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: palette.radish,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  foodCard: {
+  modalCard: {
     backgroundColor: palette.white,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: spacing.lg,
-  },
-
-  foodHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-
-  qtyBadge: {
-    backgroundColor: palette.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-
-  foodRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-
-  foodLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-
-  driverCard: {
-    backgroundColor: palette.white,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
     gap: spacing.md,
   },
-
-  driverAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: palette.primary,
-    justifyContent: "center",
-    alignItems: "center",
+  modalTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-
-  ratingPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: palette.success,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-
-  actionRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xxl,
-  },
-
-  tripBtn: {
-    flex: 1,
-    backgroundColor: palette.primary,
-  },
-
-  navBtn: {
-    width: 62,
+  closeBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 18,
-    backgroundColor: palette.black,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#dadbdd',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
+  modalRow: {
+    flexDirection: 'row',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.strokecream,
+  },
+  roundIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.creme,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

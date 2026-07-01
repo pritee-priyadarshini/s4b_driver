@@ -22,6 +22,7 @@ import {
   buildAuthDriver,
   isDriverSiteRole,
 } from '../utils/authSession';
+import { useNotificationsStore } from './notificationsStore';
 
 type AuthContextType = {
   driver: AuthDriver | null;
@@ -58,6 +59,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authLoading, setAuthLoading] = useState(false);
 
   const clearSession = useCallback(async () => {
+    const notificationsStore = useNotificationsStore.getState();
+    notificationsStore.teardownPushHandlers();
+    await notificationsStore.unregisterDeviceToken();
+    notificationsStore.reset();
+
     await clearPersistedSession();
     setDriver(null);
     setAccessToken(null);
@@ -147,8 +153,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function logout() {
     try {
       setAuthLoading(true);
+      const notificationsStore = useNotificationsStore.getState();
+      notificationsStore.teardownPushHandlers();
+      await notificationsStore.unregisterDeviceToken();
       await logoutService();
-      await clearSession();
+      notificationsStore.reset();
+      await clearPersistedSession();
+      setDriver(null);
+      setAccessToken(null);
     } catch (error) {
       console.log('LOGOUT ERROR', error);
       await clearSession();
@@ -160,6 +172,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     restoreSession();
   }, []);
+
+  useEffect(() => {
+    if (!driver || !accessToken) return;
+
+    const notificationsStore = useNotificationsStore.getState();
+    void notificationsStore.registerDeviceToken({ prompt: true });
+    notificationsStore.setupPushHandlers();
+
+    return () => {
+      useNotificationsStore.getState().teardownPushHandlers();
+    };
+  }, [driver?.id, accessToken]);
 
   useEffect(() => {
     setUnauthorizedHandler(clearSession);
