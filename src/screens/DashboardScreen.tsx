@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { AppText } from '../components/AppText';
 import { Screen } from '../components/Screen';
 import { HeroHeader } from '../components/HeroHeader';
@@ -23,7 +24,15 @@ import { OsmMapView } from '../components/OsmMapView';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { useAuth } from '../store/AuthContext';
 import { useDriverShiftStore } from '../store/driverShiftStore';
+import { usePickupStore } from '../store/pickupStore';
 import { AuthDriver } from '../types/auth';
+import {
+  getDriverSiteId,
+  statusToTripPhase,
+  type DashboardPickup,
+  type DashboardPickupItem,
+  type TripPhase,
+} from '../utils/pickupMappers';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
 
@@ -32,27 +41,16 @@ const ACCENT_SOFT = '#D8EBDF';
 const ACCENT_LIGHT = '#F2F8F4';
 const { width: SCREEN_W } = Dimensions.get('window');
 
-type TripPhase = 'assigned' | 'to_pickup' | 'to_charity';
+type Coord = { latitude: number; longitude: number };
 
-type PickupItem = { name: string; qty: number };
-
-type Pickup = {
-  id: string;
-  title: string;
+type CharityHub = {
+  name: string;
   address: string;
-  contact: string;
-  distance: string;
-  items: PickupItem[];
-  date: string;
-  time: string;
-  storage: string;
-  /** Restaurant pickup coordinates */
   latitude: number;
   longitude: number;
-  phase: TripPhase;
 };
 
-function restaurantCoord(pickup: Pickup): Coord {
+function restaurantCoord(pickup: DashboardPickup): Coord {
   return { latitude: pickup.latitude, longitude: pickup.longitude };
 }
 
@@ -68,60 +66,6 @@ function distanceKm(from: Coord, to: Coord): number {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-type Coord = { latitude: number; longitude: number };
-
-type CharityHub = {
-  name: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-};
-
-const INITIAL_PICKUPS: Pickup[] = [
-  {
-    id: '1',
-    title: 'Pizza Hut',
-    address: 'MG Road, Bangalore',
-    contact: '+91 98765 43210',
-    distance: '2.1 km',
-    items: [{ name: 'Bread', qty: 5 }, { name: 'Rice', qty: 10 }],
-    date: '12/04/26',
-    time: '2:00 PM – 4:00 PM',
-    storage: 'Refrigeration required',
-    latitude: 12.9716,
-    longitude: 77.5946,
-    phase: 'assigned',
-  },
-  {
-    id: '2',
-    title: 'Welspoon Hotel',
-    address: 'Hosur Road, Bangalore',
-    contact: '+91 98765 55555',
-    distance: '10.1 km',
-    items: [{ name: 'Cooked Food', qty: 5 }, { name: 'Rice', qty: 10 }],
-    date: '12/04/26',
-    time: '5:00 PM – 8:00 PM',
-    storage: 'Refrigeration required',
-    latitude: 12.9352,
-    longitude: 77.6245,
-    phase: 'assigned',
-  },
-  {
-    id: '3',
-    title: 'Hotel Red Dragon',
-    address: 'Marathahalli, Bangalore',
-    contact: '+91 98765 11111',
-    distance: '8.1 km',
-    items: [{ name: 'Cooked Food', qty: 15 }, { name: 'Vegetables', qty: 8 }],
-    date: '12/04/26',
-    time: '3:00 PM – 6:00 PM',
-    storage: 'Refrigeration required',
-    latitude: 12.9591,
-    longitude: 77.6974,
-    phase: 'assigned',
-  },
-];
-
 function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good morning';
@@ -129,7 +73,7 @@ function greeting() {
   return 'Good evening';
 }
 
-function itemQty(items: PickupItem[]) {
+function itemQty(items: DashboardPickupItem[]) {
   return items.reduce((s, i) => s + i.qty, 0);
 }
 
@@ -241,20 +185,51 @@ export function DashboardScreen() {
 
   const charityHub = useMemo(() => getCharityHub(driver), [driver]);
   const firstName = driver?.firstName || 'Driver';
+  const siteId = useMemo(() => getDriverSiteId(driver), [driver]);
 
   const liveStatus = useDriverShiftStore((s) => s.liveStatus);
   const driverLocation = useDriverShiftStore((s) => s.driverLocation);
   const shiftStartLabel = useDriverShiftStore((s) => s.shiftStartLabel);
   const toggleLive = useDriverShiftStore((s) => s.toggleLive);
+  const resumeLiveIfNeeded = useDriverShiftStore((s) => s.resumeLiveIfNeeded);
 
-  const [pickups, setPickups] = useState(INITIAL_PICKUPS);
-  const [foodModal, setFoodModal] = useState<Pickup | null>(null);
-  const [activeTrip, setActiveTrip] = useState<Pickup | null>(null);
+  const pickups = usePickupStore((s) => s.currentPickups);
+  const loadingPickups = usePickupStore((s) => s.loadingCurrent);
+  const actionPickupId = usePickupStore((s) => s.actionPickupId);
+  const fetchCurrentPickups = usePickupStore((s) => s.fetchCurrentPickups);
+  const updatePickupStatus = usePickupStore((s) => s.updatePickupStatus);
+  const completePickup = usePickupStore((s) => s.completePickup);
+  const removePickupLocally = usePickupStore((s) => s.removePickupLocally);
+  const patchPickupLocally = usePickupStore((s) => s.patchPickupLocally);
+
+  const [foodModal, setFoodModal] = useState<DashboardPickup | null>(null);
+  const [activeTrip, setActiveTrip] = useState<DashboardPickup | null>(null);
   const [tripVisible, setTripVisible] = useState(false);
+  const [slideBusy, setSlideBusy] = useState(false);
 
   const toggleAnim = useRef(new Animated.Value(0)).current;
 
   const isLive = liveStatus === 'live';
+
+  const loadPickups = useCallback(async () => {
+    if (!driver) return;
+    try {
+      await fetchCurrentPickups(driver, driverLocation);
+    } catch {
+      // Errors are stored in pickup store; avoid noisy alerts on background refresh.
+    }
+  }, [driver, driverLocation, fetchCurrentPickups]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadPickups();
+    }, [loadPickups]),
+  );
+
+  useEffect(() => {
+    if (!siteId) return;
+    void resumeLiveIfNeeded(siteId);
+  }, [siteId, resumeLiveIfNeeded]);
 
   useTransparentStatusBar('light');
 
@@ -275,14 +250,27 @@ export function DashboardScreen() {
   const handleLiveToggle = async () => {
     if (liveStatus === 'connecting') return;
 
+    if (!siteId) {
+      Alert.alert(
+        'Site not found',
+        'Your driver account is missing site access. Contact your charity admin.',
+      );
+      return;
+    }
+
     const tryingToGoLive = liveStatus === 'offline';
-    await toggleLive();
+    await toggleLive(siteId);
 
     if (tryingToGoLive && useDriverShiftStore.getState().liveStatus === 'offline') {
       Alert.alert(
-        'Location required',
-        'Turn on location access so we can route you to pickups and your charity.',
+        'Could not go live',
+        'Turn on location access and try again so we can register you for pickups.',
       );
+      return;
+    }
+
+    if (tryingToGoLive && useDriverShiftStore.getState().liveStatus === 'live') {
+      void loadPickups();
     }
   };
 
@@ -295,37 +283,66 @@ export function DashboardScreen() {
     [pickups],
   );
 
-  const updatePickup = (id: string, patch: Partial<Pickup>) => {
-    setPickups((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const updatePickup = (id: string, patch: Partial<DashboardPickup>) => {
+    const pickupId = Number(id);
+    if (!Number.isNaN(pickupId)) {
+      patchPickupLocally(pickupId, patch);
+    }
     setActiveTrip((prev) => (prev?.id === id ? { ...prev, ...patch } : prev));
   };
 
-  const openTripMap = (pickup: Pickup) => {
+  const openTripMap = (pickup: DashboardPickup) => {
     setActiveTrip(pickup);
     setTripVisible(true);
   };
 
-  const handleSlideComplete = (pickup: Pickup) => {
+  const handleSlideComplete = async (pickup: DashboardPickup) => {
     if (liveStatus !== 'live') {
       Alert.alert('Go live first', 'Turn on Go live before starting a trip.');
       return;
     }
 
-    if (pickup.phase === 'assigned') {
-      updatePickup(pickup.id, { phase: 'to_pickup' });
-      openTripMap({ ...pickup, phase: 'to_pickup' });
-      return;
-    }
+    if (slideBusy || actionPickupId != null) return;
 
-    if (pickup.phase === 'to_pickup') {
-      updatePickup(pickup.id, { phase: 'to_charity' });
-      openTripMap({ ...pickup, phase: 'to_charity' });
-      return;
-    }
+    setSlideBusy(true);
+    try {
+      if (pickup.phase === 'assigned') {
+        const updated = await updatePickupStatus(pickup.pickupId, 'EN_ROUTE');
+        const next: DashboardPickup = {
+          ...pickup,
+          phase: statusToTripPhase(updated.status),
+          backendStatus: updated.status,
+        };
+        updatePickup(pickup.id, next);
+        openTripMap(next);
+        return;
+      }
 
-    setTripVisible(false);
-    setActiveTrip(null);
-    setPickups((prev) => prev.filter((p) => p.id !== pickup.id));
+      if (pickup.phase === 'to_pickup') {
+        const updated = await updatePickupStatus(pickup.pickupId, 'ARRIVED');
+        const next: DashboardPickup = {
+          ...pickup,
+          phase: statusToTripPhase(updated.status),
+          backendStatus: updated.status,
+        };
+        updatePickup(pickup.id, next);
+        openTripMap(next);
+        return;
+      }
+
+      await completePickup(pickup.pickupId);
+      setTripVisible(false);
+      setActiveTrip(null);
+      removePickupLocally(pickup.pickupId);
+      void loadPickups();
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        (err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      Alert.alert('Pickup update failed', message);
+    } finally {
+      setSlideBusy(false);
+    }
   };
 
   const tripMapConfig = useMemo(() => {
@@ -518,9 +535,10 @@ export function DashboardScreen() {
     );
   };
 
-  const renderCard = ({ item }: { item: Pickup }) => {
+  const renderCard = ({ item }: { item: DashboardPickup }) => {
     const qty = itemQty(item.items);
     const isActive = activeTrip?.id === item.id && tripVisible;
+    const isActioning = actionPickupId === item.pickupId || slideBusy;
 
     return (
       <View style={[styles.card, isActive && styles.cardActive]}>
@@ -575,22 +593,24 @@ export function DashboardScreen() {
           </View>
         ) : null}
 
-        <View style={styles.contactRow}>
-          <Pressable
-            style={styles.contactBtn}
-            onPress={() => Linking.openURL(`tel:${item.contact.replace(/[^+\d]/g, '')}`)}
-          >
-            <Ionicons name="call-outline" size={normalize(18)} color={ACCENT} />
-            <AppText variant="bodyBold" style={{ color: ACCENT }}>Call restaurant</AppText>
-          </Pressable>
-          <Pressable
-            style={styles.contactBtn}
-            onPress={() => Linking.openURL(`sms:${item.contact}`)}
-          >
-            <Ionicons name="chatbubble-outline" size={normalize(18)} color={ACCENT} />
-            <AppText variant="bodyBold" style={{ color: ACCENT }}>Message</AppText>
-          </Pressable>
-        </View>
+        {item.contact ? (
+          <View style={styles.contactRow}>
+            <Pressable
+              style={styles.contactBtn}
+              onPress={() => Linking.openURL(`tel:${item.contact.replace(/[^+\d]/g, '')}`)}
+            >
+              <Ionicons name="call-outline" size={normalize(18)} color={ACCENT} />
+              <AppText variant="bodyBold" style={{ color: ACCENT }}>Call restaurant</AppText>
+            </Pressable>
+            <Pressable
+              style={styles.contactBtn}
+              onPress={() => Linking.openURL(`sms:${item.contact}`)}
+            >
+              <Ionicons name="chatbubble-outline" size={normalize(18)} color={ACCENT} />
+              <AppText variant="bodyBold" style={{ color: ACCENT }}>Message</AppText>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.charityNote}>
           <Ionicons name="home-outline" size={normalize(16)} color={palette.stone} />
@@ -600,9 +620,9 @@ export function DashboardScreen() {
         </View>
 
         <SlideToAct
-          label={slideLabel(item.phase)}
-          disabled={!isLive}
-          onComplete={() => handleSlideComplete(item)}
+          label={isActioning ? 'Updating…' : slideLabel(item.phase)}
+          disabled={!isLive || isActioning}
+          onComplete={() => void handleSlideComplete(item)}
         />
       </View>
     );
@@ -624,7 +644,9 @@ export function DashboardScreen() {
                 Today&apos;s pickups
               </AppText>
               <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
-                {sorted.length} job{sorted.length !== 1 ? 's' : ''} assigned to you
+                {loadingPickups
+                  ? 'Loading pickups…'
+                  : `${sorted.length} job${sorted.length !== 1 ? 's' : ''} assigned to you`}
               </AppText>
             </View>
           </>
@@ -633,13 +655,22 @@ export function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: hp(1.6) }} />}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="checkmark-circle-outline" size={normalize(52)} color={ACCENT_SOFT} />
-            <AppText variant="bodyBold" color={palette.stone}>No pickups right now</AppText>
-            <AppText variant="bodySmall" color={palette.stone} style={{ textAlign: 'center' }}>
-              Go live and we&apos;ll notify you when a restaurant needs a collection.
-            </AppText>
-          </View>
+          loadingPickups ? (
+            <View style={styles.empty}>
+              <ActivityIndicator size="large" color={ACCENT} />
+              <AppText variant="bodySmall" color={palette.stone}>
+                Loading your pickups…
+              </AppText>
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="checkmark-circle-outline" size={normalize(52)} color={ACCENT_SOFT} />
+              <AppText variant="bodyBold" color={palette.stone}>No pickups right now</AppText>
+              <AppText variant="bodySmall" color={palette.stone} style={{ textAlign: 'center' }}>
+                Go live and we&apos;ll notify you when a restaurant needs a collection.
+              </AppText>
+            </View>
+          )
         }
       />
 

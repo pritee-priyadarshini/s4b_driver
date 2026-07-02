@@ -9,3 +9,5 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 .env.local
+google-services.json
+GoogleService-Info.plist

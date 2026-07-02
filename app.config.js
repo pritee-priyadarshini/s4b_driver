@@ -36,9 +36,9 @@ if (
   process.env.EAS_BUILD_PLATFORM === 'android' &&
   !androidGoogleServicesFile
 ) {
-  throw new Error(
-    '[app.config] Android EAS build requires google-services.json. ' +
-      'Add google-services.json or set GOOGLE_SERVICES_JSON for EAS file env.',
+  console.warn(
+    '[app.config] google-services.json not found — Firebase push is disabled for this build. ' +
+      'Add google-services.json to the project root or set GOOGLE_SERVICES_JSON (file) in EAS env.',
   );
 }
 
@@ -58,7 +58,7 @@ const expoNotificationsPlugin = includeFirebase
   ? [
       'expo-notifications',
       {
-        icon: './assets/intro/logo.png',
+        icon: './assets/intro/notification_icon.png',
         color: '#9B8AFB',
       },
     ]
@@ -75,7 +75,7 @@ export default {
     splash: {
       backgroundColor: '#F6F4EE',
     },
-    assetBundlePatterns: ['**/*'],
+    assetBundlePatterns: ['assets/**/*'],
 
     ios: {
       supportsTablet: true,
@@ -131,12 +131,12 @@ export default {
           isAndroidForegroundServiceEnabled: true,
         },
       ],
-      withAndroidFirebaseNotificationManifest,
+      ...(includeFirebase ? [withAndroidFirebaseNotificationManifest] : []),
     ],
 
     extra: {
-      eas: {
-        projectId: '27e91e36-34b9-442d-bc44-7745df8fb81e',
+      "eas": {
+        "projectId": "66c1acb2-e531-4a4e-999d-8d50788f9ead"
       },
       firebaseEnabled: includeFirebase,
     },

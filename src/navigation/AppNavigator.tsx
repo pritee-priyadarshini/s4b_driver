@@ -34,7 +34,7 @@ export function AppNavigator() {
 
     const data = payload.data ?? {};
 
-    if (data.pickupId) {
+    if (data.pickupId || data.type === 'driver_assigned') {
       navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
       return;
     }

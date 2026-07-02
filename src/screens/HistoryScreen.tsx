@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,12 +7,13 @@ import {
   Modal,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { CompositeScreenProps } from '@react-navigation/native';
+import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Screen } from '../components/Screen';
@@ -20,7 +21,9 @@ import { AppText } from '../components/AppText';
 import { HeroHeader } from '../components/HeroHeader';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { useAuth } from '../store/AuthContext';
+import { usePickupStore } from '../store/pickupStore';
 import { AuthDriver } from '../types/auth';
+import { HistoryOrder } from '../types/history';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
 
@@ -40,65 +43,7 @@ type Props =
     NativeStackScreenProps<RootStackParamList>
   >;
 
-type HistoryItem = {
-  id: string;
-  orderId: string;
-  status: 'Assigned' | 'Picked' | 'Delivered';
-  restaurant: { name: string; address: string };
-  charity: { name: string; address: string };
-  assignedDate: string;
-  assignedTime: string;
-  deliveredDate: string;
-  deliveredTime: string;
-  driverRating: number;
-  restaurantRating: number;
-  items: { name: string; qty: number }[];
-};
-
-const mockHistory: HistoryItem[] = [
-  {
-    id: '1',
-    orderId: '#S4B-1024',
-    status: 'Delivered',
-    restaurant: { name: 'Pizza Hut', address: 'MG Road, Bangalore' },
-    charity: { name: 'Hope Foundation', address: 'Indiranagar, Bangalore' },
-    assignedDate: '12 Apr 2026',
-    assignedTime: '02:00 PM',
-    deliveredDate: '12 Apr 2026',
-    deliveredTime: '04:30 PM',
-    driverRating: 4,
-    restaurantRating: 5,
-    items: [{ name: 'Bread', qty: 5 }, { name: 'Rice', qty: 10 }],
-  },
-  {
-    id: '2',
-    orderId: '#S4B-1041',
-    status: 'Picked',
-    restaurant: { name: 'Red Dragon', address: 'Marathahalli, Bangalore' },
-    charity: { name: 'Smile Trust', address: 'Whitefield, Bangalore' },
-    assignedDate: '11 Apr 2026',
-    assignedTime: '01:30 PM',
-    deliveredDate: '11 Apr 2026',
-    deliveredTime: '05:00 PM',
-    driverRating: 5,
-    restaurantRating: 4,
-    items: [{ name: 'Cooked Food', qty: 15 }],
-  },
-  {
-    id: '3',
-    orderId: '#S4B-1055',
-    status: 'Delivered',
-    restaurant: { name: 'Welspoon Hotel', address: 'Hosur Road, Bangalore' },
-    charity: { name: 'Hope Foundation', address: 'Indiranagar, Bangalore' },
-    assignedDate: '10 Apr 2026',
-    assignedTime: '05:00 PM',
-    deliveredDate: '10 Apr 2026',
-    deliveredTime: '07:15 PM',
-    driverRating: 5,
-    restaurantRating: 5,
-    items: [{ name: 'Cooked Food', qty: 5 }, { name: 'Rice', qty: 10 }],
-  },
-];
+type HistoryItem = HistoryOrder;
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -122,11 +67,13 @@ function itemQty(items: { qty: number }[]) {
 function statusLabel(status: HistoryItem['status']) {
   if (status === 'Delivered') return 'Completed';
   if (status === 'Picked') return 'In transit';
+  if (status === 'Cancelled') return 'Cancelled';
   return 'Assigned';
 }
 
 function statusColor(status: HistoryItem['status']) {
   if (status === 'Delivered') return ACCENT;
+  if (status === 'Cancelled') return palette.chilli;
   if (status === 'Picked') return '#C47B1A';
   return palette.stone;
 }
@@ -135,23 +82,52 @@ export function HistoryScreen({ navigation }: Props) {
   useTransparentStatusBar('light');
   const insets = useSafeAreaInsets();
   const { driver } = useAuth();
+  const pastPickups = usePickupStore((s) => s.pastPickups);
+  const loadingPast = usePickupStore((s) => s.loadingPast);
+  const fetchPastPickups = usePickupStore((s) => s.fetchPastPickups);
+
   const charityHub = useMemo(() => getCharityHub(driver), [driver]);
   const firstName = driver?.firstName || 'Driver';
   const [foodModal, setFoodModal] = useState<HistoryItem | null>(null);
 
-  const todayOrders = useMemo(
-    () => mockHistory.filter((item) => item.assignedDate === '12 Apr 2026').length,
+  const loadHistory = useCallback(async () => {
+    if (!driver) return;
+    try {
+      await fetchPastPickups(driver);
+    } catch {
+      // Keep existing list on refresh failure.
+    }
+  }, [driver, fetchPastPickups]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadHistory();
+    }, [loadHistory]),
+  );
+
+  const todayLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
     [],
+  );
+
+  const todayOrders = useMemo(
+    () => pastPickups.filter((item) => item.assignedDate === todayLabel).length,
+    [pastPickups, todayLabel],
   );
 
   const totalKg = useMemo(
-    () => mockHistory.reduce((sum, item) => sum + itemQty(item.items), 0),
-    [],
+    () => pastPickups.reduce((sum, item) => sum + itemQty(item.items), 0),
+    [pastPickups],
   );
 
   const completedCount = useMemo(
-    () => mockHistory.filter((i) => i.status === 'Delivered').length,
-    [],
+    () => pastPickups.filter((i) => i.status === 'Delivered').length,
+    [pastPickups],
   );
 
   const renderHeader = () => (
@@ -183,7 +159,7 @@ export function HistoryScreen({ navigation }: Props) {
       <View style={[styles.locationPill, styles.locationPillHistory]}>
         <Ionicons name="time-outline" size={normalize(14)} color={palette.white} />
         <AppText variant="caption" style={styles.locationPillText}>
-          Collection history · {mockHistory.length} trips
+          Collection history · {pastPickups.length} trips
         </AppText>
       </View>
     </HeroHeader>
@@ -317,7 +293,7 @@ export function HistoryScreen({ navigation }: Props) {
   return (
     <Screen scrollable={false} backgroundColor={palette.background} transparentTop>
       <FlatList
-        data={mockHistory}
+        data={pastPickups}
         keyExtractor={(item) => item.id}
         renderItem={renderCard}
         ListHeaderComponent={
@@ -329,7 +305,9 @@ export function HistoryScreen({ navigation }: Props) {
                 Recent collections
               </AppText>
               <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
-                {mockHistory.length} trip{mockHistory.length !== 1 ? 's' : ''} on record
+                {loadingPast
+                  ? 'Loading history…'
+                  : `${pastPickups.length} trip${pastPickups.length !== 1 ? 's' : ''} on record`}
               </AppText>
             </View>
           </>
@@ -338,13 +316,22 @@ export function HistoryScreen({ navigation }: Props) {
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: hp(1.6) }} />}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="time-outline" size={normalize(52)} color={ACCENT_SOFT} />
-            <AppText variant="bodyBold" color={palette.stone}>No collections yet</AppText>
-            <AppText variant="bodySmall" color={palette.stone} style={{ textAlign: 'center' }}>
-              Completed pickups will show up here after you deliver.
-            </AppText>
-          </View>
+          loadingPast ? (
+            <View style={styles.empty}>
+              <ActivityIndicator size="large" color={ACCENT} />
+              <AppText variant="bodySmall" color={palette.stone}>
+                Loading collection history…
+              </AppText>
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="time-outline" size={normalize(52)} color={ACCENT_SOFT} />
+              <AppText variant="bodyBold" color={palette.stone}>No collections yet</AppText>
+              <AppText variant="bodySmall" color={palette.stone} style={{ textAlign: 'center' }}>
+                Completed pickups will show up here after you deliver.
+              </AppText>
+            </View>
+          )
         }
       />
 

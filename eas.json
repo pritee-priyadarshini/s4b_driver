@@ -6,12 +6,14 @@
     "preview": {
       "distribution": "internal",
       "developmentClient": false,
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "android": {
         "buildType": "app-bundle"
       }
