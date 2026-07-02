@@ -3,6 +3,11 @@ import * as SecureStore from 'expo-secure-store';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 
+import {
+  requestDriverLocationPermissions,
+  showLocationSettingsAlert,
+} from '../utils/locationPermissions';
+
 export const DRIVER_LOCATION_TASK = 'driver-background-location';
 const LIVE_SHIFT_KEY = 'driver_shift_live';
 
@@ -46,11 +51,12 @@ export async function readShiftLive(): Promise<boolean> {
 }
 
 export async function requestLocationPermissions(): Promise<boolean> {
-  const foreground = await Location.requestForegroundPermissionsAsync();
-  if (foreground.status !== 'granted') return false;
+  const result = await requestDriverLocationPermissions();
+  return result.foregroundGranted;
+}
 
-  await Location.requestBackgroundPermissionsAsync();
-  return true;
+export async function requestLocationPermissionsDetailed() {
+  return requestDriverLocationPermissions();
 }
 
 async function stopForegroundWatch() {
@@ -131,8 +137,17 @@ export async function startDriverLocationTracking(
 ): Promise<{ ok: boolean; initial?: DriverCoord }> {
   setDriverLocationHandler(onUpdate);
 
-  const permitted = await requestLocationPermissions();
-  if (!permitted) return { ok: false };
+  const permission = await requestDriverLocationPermissions();
+  if (!permission.foregroundGranted) {
+    if (permission.needsSettings) {
+      showLocationSettingsAlert('foreground');
+    }
+    return { ok: false };
+  }
+
+  if (!permission.backgroundGranted) {
+    showLocationSettingsAlert('background');
+  }
 
   const current = await Location.getCurrentPositionAsync({
     accuracy: Location.Accuracy.Balanced,

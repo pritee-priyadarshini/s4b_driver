@@ -152,3 +152,10 @@ export function getForgotPasswordErrorMessage(error: unknown): string {
 export function getForgotPasswordSuccessMessage(message?: string) {
   return message || 'A reset code has been sent to your email.';
 }
+
+export function getOtpVerificationErrorMessage(
+  error: unknown,
+  fallback = 'Could not verify the code. Please try again.',
+): string {
+  return getUserFriendlyErrorMessage(error, fallback);
+}

@@ -263,8 +263,8 @@ export function DashboardScreen() {
 
     if (tryingToGoLive && useDriverShiftStore.getState().liveStatus === 'offline') {
       Alert.alert(
-        'Could not go live',
-        'Turn on location access and try again so we can register you for pickups.',
+        'Location required',
+        'To go live, allow location access — preferably "Always" on iOS or "Allow all the time" on Android — so we can track your route in the background. Open Settings if you previously denied permission.',
       );
       return;
     }

@@ -73,12 +73,16 @@ export default {
     userInterfaceStyle: 'light',
     scheme: 'saveful_driver_app',
     splash: {
+      image: './assets/intro/logo.png',
+      resizeMode: 'contain',
       backgroundColor: '#F6F4EE',
     },
+    icon: './assets/intro/Saveful-for-Business-logo.png',
     assetBundlePatterns: ['assets/**/*'],
 
     ios: {
       supportsTablet: true,
+      icon: './assets/intro/Saveful-for-Business-logo.png',
       bundleIdentifier: 'com.saveful.driver.app',
       ...(iosGoogleServicesFile && { googleServicesFile: iosGoogleServicesFile }),
       infoPlist: {
@@ -91,6 +95,10 @@ export default {
 
     android: {
       package: 'com.saveful.driver.app',
+      adaptiveIcon: {
+        foregroundImage: './assets/intro/Saveful-for-Business-logo.png',
+        backgroundColor: '#F6F4EE',
+      },
       ...(androidGoogleServicesFile && { googleServicesFile: androidGoogleServicesFile }),
       permissions: [
         'ACCESS_COARSE_LOCATION',
@@ -123,9 +131,9 @@ export default {
         'expo-location',
         {
           locationWhenInUsePermission:
-            'Allow Saveful Driver to access your location while you are on a live shift.',
+            'Saveful Driver needs your location while you are on a live shift to route you to pickups.',
           locationAlwaysAndWhenInUsePermission:
-            'Allow Saveful Driver to keep sharing your location in the background while you are live, so routing stays accurate until you go offline.',
+            'Saveful Driver needs "Always" location access so we can keep tracking your route while you are live, even when the app is in the background. Please choose Allow all the time in Settings if prompted.',
           isIosBackgroundLocationEnabled: true,
           isAndroidBackgroundLocationEnabled: true,
           isAndroidForegroundServiceEnabled: true,

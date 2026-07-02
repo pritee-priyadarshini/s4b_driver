@@ -20,7 +20,7 @@ import {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function AppNavigator() {
-  const { authenticated, loading } = useAuth();
+  const { authenticated } = useAuth();
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const isAuthenticatedRef = useRef(authenticated);
   const pendingNotificationRef = useRef<NotificationPayload | null>(null);
@@ -76,10 +76,6 @@ export function AppNavigator() {
     pendingNotificationRef.current = null;
     navigateFromNotification(payload);
   }, [authenticated]);
-
-  if (loading) {
-    return null;
-  }
 
   return (
     <NavigationContainer ref={navigationRef}>
