@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +26,7 @@ import {
   getUserFriendlyErrorMessage,
   showSuccessAlert,
 } from '../utils/apiError';
+import { showAppSuccess } from '../utils/appAlert';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChangePassword'>;
 
@@ -169,12 +169,7 @@ export function ChangePasswordScreen({ navigation }: Props) {
       setLoading(true);
       await authService.resetPassword(trimmedEmail, otp.join(''), newPassword);
 
-      Alert.alert('Success', 'Password updated successfully.', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      showAppSuccess('Password updated successfully.', 'Success', () => navigation.goBack());
     } catch (error) {
       setFormError(
         getUserFriendlyErrorMessage(

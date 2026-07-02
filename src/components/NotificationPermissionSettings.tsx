@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppText } from './AppText';
+import { Skeleton } from './Skeleton';
 import { useNotificationsStore } from '../store/notificationsStore';
 import type { NotificationPermissionState } from '../store/notificationsStore';
 import { palette } from '../theme/colors';
@@ -76,7 +77,8 @@ export function NotificationPermissionSettings() {
   if (isFetchingPermission && !permission) {
     return (
       <View style={styles.loadingWrap}>
-        <ActivityIndicator color={palette.primary} />
+        <Skeleton width="100%" height={72} borderRadius={12} />
+        <Skeleton width="100%" height={48} borderRadius={12} />
       </View>
     );
   }
@@ -149,8 +151,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   loadingWrap: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
   },
   statusRow: {
     flexDirection: 'row',

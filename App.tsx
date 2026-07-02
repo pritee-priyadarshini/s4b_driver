@@ -12,6 +12,7 @@ import {
 
 import { useFonts } from "expo-font";
 import { AppNavigator } from "./src/navigation/AppNavigator";
+import { AppAlertModal } from "./src/components/AppAlertModal";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { AuthProvider, useAuth } from "./src/store/AuthContext";
 import { useDriverShiftStore } from "./src/store/driverShiftStore";
@@ -72,6 +73,7 @@ function AppRoot({ fontsReady, splashTimerDone, onSplashFinish }: AppRootProps) 
     <>
       <StatusBar style="dark" />
       <AppNavigator />
+      <AppAlertModal />
     </>
   );
 }

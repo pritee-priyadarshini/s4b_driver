@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { showAppError, showAppSuccess } from './appAlert';
 
 type AxiosLikeError = {
   isAxiosError?: boolean;
@@ -130,8 +130,8 @@ export function getUserFriendlyErrorMessage(
   return fallback;
 }
 
-export function showSuccessAlert(message: string, title = 'Success') {
-  Alert.alert(title, message);
+export function showSuccessAlert(message: string, title = 'Success', onOk?: () => void) {
+  showAppSuccess(message, title, onOk);
 }
 
 export function showErrorAlert(
@@ -139,7 +139,7 @@ export function showErrorAlert(
   fallback: string,
   title = 'Error',
 ) {
-  Alert.alert(title, getUserFriendlyErrorMessage(error, fallback));
+  showAppError(title, getUserFriendlyErrorMessage(error, fallback));
 }
 
 export function getForgotPasswordErrorMessage(error: unknown): string {

@@ -10,7 +10,6 @@ import {
   PanResponder,
   Dimensions,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { AppText } from '../components/AppText';
 import { Screen } from '../components/Screen';
 import { HeroHeader } from '../components/HeroHeader';
+import { Skeleton } from '../components/Skeleton';
 import { OsmMapView } from '../components/OsmMapView';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { useAuth } from '../store/AuthContext';
@@ -35,6 +35,7 @@ import {
 } from '../utils/pickupMappers';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
+import { showAppError } from '../utils/appAlert';
 
 const ACCENT = palette.kale;
 const ACCENT_SOFT = '#D8EBDF';
@@ -251,7 +252,7 @@ export function DashboardScreen() {
     if (liveStatus === 'connecting') return;
 
     if (!siteId) {
-      Alert.alert(
+      showAppError(
         'Site not found',
         'Your driver account is missing site access. Contact your charity admin.',
       );
@@ -262,7 +263,7 @@ export function DashboardScreen() {
     await toggleLive(siteId);
 
     if (tryingToGoLive && useDriverShiftStore.getState().liveStatus === 'offline') {
-      Alert.alert(
+      showAppError(
         'Location required',
         'To go live, allow location access — preferably "Always" on iOS or "Allow all the time" on Android — so we can track your route in the background. Open Settings if you previously denied permission.',
       );
@@ -298,7 +299,7 @@ export function DashboardScreen() {
 
   const handleSlideComplete = async (pickup: DashboardPickup) => {
     if (liveStatus !== 'live') {
-      Alert.alert('Go live first', 'Turn on Go live before starting a trip.');
+      showAppError('Go live first', 'Turn on Go live before starting a trip.');
       return;
     }
 
@@ -339,7 +340,7 @@ export function DashboardScreen() {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         (err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-      Alert.alert('Pickup update failed', message);
+      showAppError('Pickup update failed', message);
     } finally {
       setSlideBusy(false);
     }
@@ -628,6 +629,8 @@ export function DashboardScreen() {
     );
   };
 
+  const showPickupSkeleton = loadingPickups && pickups.length === 0;
+
   return (
     <Screen scrollable={false} backgroundColor={palette.background} transparentTop>
       <FlatList
@@ -644,10 +647,11 @@ export function DashboardScreen() {
                 Today&apos;s pickups
               </AppText>
               <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
-                {loadingPickups
+                {showPickupSkeleton
                   ? 'Loading pickups…'
                   : `${sorted.length} job${sorted.length !== 1 ? 's' : ''} assigned to you`}
               </AppText>
+              {showPickupSkeleton ? <DashboardSkeleton /> : null}
             </View>
           </>
         }
@@ -655,14 +659,7 @@ export function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: hp(1.6) }} />}
         ListEmptyComponent={
-          loadingPickups ? (
-            <View style={styles.empty}>
-              <ActivityIndicator size="large" color={ACCENT} />
-              <AppText variant="bodySmall" color={palette.stone}>
-                Loading your pickups…
-              </AppText>
-            </View>
-          ) : (
+          showPickupSkeleton ? null : (
             <View style={styles.empty}>
               <Ionicons name="checkmark-circle-outline" size={normalize(52)} color={ACCENT_SOFT} />
               <AppText variant="bodyBold" color={palette.stone}>No pickups right now</AppText>
@@ -872,6 +869,37 @@ export function DashboardScreen() {
         ) : null}
       </Modal>
     </Screen>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <View style={skeletonStyles.wrap}>
+      <View style={skeletonStyles.liveCard}>
+        <Skeleton width={normalize(44)} height={normalize(44)} borderRadius={normalize(22)} />
+        <View style={skeletonStyles.liveText}>
+          <Skeleton width="55%" height={normalize(16)} borderRadius={normalize(6)} />
+          <Skeleton width="80%" height={normalize(12)} borderRadius={normalize(4)} />
+        </View>
+        <Skeleton width={normalize(54)} height={normalize(30)} borderRadius={normalize(16)} />
+      </View>
+
+      {[0, 1].map((item) => (
+        <View key={item} style={skeletonStyles.pickupCard}>
+          <View style={skeletonStyles.cardTopRow}>
+            <Skeleton width={wp(28)} height={normalize(24)} borderRadius={normalize(8)} />
+            <Skeleton width={wp(16)} height={normalize(14)} borderRadius={normalize(4)} />
+          </View>
+          <Skeleton width="72%" height={normalize(20)} borderRadius={normalize(6)} />
+          <Skeleton width="90%" height={normalize(14)} borderRadius={normalize(4)} />
+          <View style={skeletonStyles.infoRow}>
+            <Skeleton width="48%" height={normalize(64)} borderRadius={normalize(12)} />
+            <Skeleton width="48%" height={normalize(64)} borderRadius={normalize(12)} />
+          </View>
+          <Skeleton width="100%" height={normalize(52)} borderRadius={normalize(14)} />
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -1463,5 +1491,44 @@ const styles = StyleSheet.create({
   },
   tripGpsBannerWarn: {
     backgroundColor: '#FFF0EB',
+  },
+});
+
+const skeletonStyles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: wp(4),
+    gap: hp(1.6),
+  },
+  liveCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(3),
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: wp(4),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+  },
+  liveText: {
+    flex: 1,
+    gap: hp(0.6),
+  },
+  pickupCard: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: wp(4),
+    gap: hp(1.2),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: wp(2.5),
   },
 });

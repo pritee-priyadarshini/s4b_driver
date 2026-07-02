@@ -6,8 +6,6 @@ import {
   Pressable,
   Image,
   Linking,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -22,9 +20,11 @@ import { useAuth } from '../store/AuthContext';
 import { useSubmitLock } from '../hooks/useSubmitLock';
 import { profileService } from '../services/profileService';
 import { AuthDriver } from '../types/auth';
-import { showErrorAlert, showSuccessAlert } from '../utils/apiError';
+import { Skeleton } from '../components/Skeleton';
+import { showAppConfirm, showAppError, showAppSuccess } from '../utils/appAlert';
+import { showErrorAlert } from '../utils/apiError';
 import { NotificationPermissionSettings } from '../components/NotificationPermissionSettings';
-import { hp } from '../utils/responsive';
+import { hp, normalize } from '../utils/responsive';
 
 type SectionKey = 'personal' | 'contact' | 'notifications' | 'driver';
 
@@ -154,12 +154,12 @@ export function ProfileScreen() {
     try {
       const supported = await Linking.canOpenURL(url);
       if (!supported) {
-        Alert.alert('Error', 'Cannot open this link.');
+        showAppError('Error', 'Cannot open this link.');
         return;
       }
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Error', 'Something went wrong.');
+      showAppError('Error', 'Something went wrong.');
     }
   };
 
@@ -167,14 +167,14 @@ export function ProfileScreen() {
     if (submitting) return;
 
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      Alert.alert('Validation', 'First name and last name are required.');
+      showAppError('Validation', 'First name and last name are required.');
       return;
     }
 
     await withLock(async () => {
       try {
         if (!driver?.id) {
-          Alert.alert('Error', 'User not found');
+          showAppError('Error', 'User not found');
           return;
         }
 
@@ -183,7 +183,7 @@ export function ProfileScreen() {
           lastName: formData.lastName.trim(),
         });
         await refreshProfile();
-        showSuccessAlert('Personal details updated');
+        showAppSuccess('Personal details updated');
       } catch (error) {
         showErrorAlert(error, 'Could not update personal details', 'Update failed');
       }
@@ -194,14 +194,14 @@ export function ProfileScreen() {
     if (submitting) return;
 
     if (!formData.mobile.trim()) {
-      Alert.alert('Validation', 'Mobile number is required.');
+      showAppError('Validation', 'Mobile number is required.');
       return;
     }
 
     await withLock(async () => {
       try {
         if (!driver?.id) {
-          Alert.alert('Error', 'User not found');
+          showAppError('Error', 'User not found');
           return;
         }
 
@@ -209,7 +209,7 @@ export function ProfileScreen() {
           mobile: formData.mobile.trim(),
         });
         await refreshProfile();
-        showSuccessAlert('Contact details updated');
+        showAppSuccess('Contact details updated');
       } catch (error) {
         showErrorAlert(error, 'Could not update contact', 'Update failed');
       }
@@ -217,17 +217,17 @@ export function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: logout },
-    ]);
+    showAppConfirm('Logout', 'Are you sure you want to logout?', {
+      confirmText: 'Logout',
+      destructive: true,
+      onConfirm: logout,
+    });
   };
 
   const handleDelete = () => {
-    Alert.alert(
+    showAppError(
       'Delete Account',
       'Account deletion is not available in the app yet. Please contact support if you need help.',
-      [{ text: 'OK', style: 'default' }],
     );
   };
 
@@ -236,13 +236,8 @@ export function ProfileScreen() {
 
   if (loading && !driver) {
     return (
-      <Screen backgroundColor={palette.creme}>
-        <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color={palette.primary} />
-          <AppText variant="bodySmall" style={styles.loadingText}>
-            Loading profile...
-          </AppText>
-        </View>
+      <Screen scrollable={false} backgroundColor={palette.creme} transparentTop>
+        <ProfileSkeleton />
       </Screen>
     );
   }
@@ -281,7 +276,7 @@ export function ProfileScreen() {
 
           {refreshing ? (
             <View style={styles.refreshingBadge}>
-              <ActivityIndicator size="small" color={palette.white} />
+              <View style={styles.refreshingDot} />
             </View>
           ) : null}
 
@@ -468,16 +463,30 @@ export function ProfileScreen() {
   );
 }
 
+function ProfileSkeleton() {
+  return (
+    <View style={skeletonStyles.wrap}>
+      <Skeleton width="100%" height={hp(28)} borderRadius={0} />
+      <View style={skeletonStyles.content}>
+        <View style={skeletonStyles.helpCard}>
+          <Skeleton width="50%" height={normalize(18)} borderRadius={normalize(6)} style={skeletonStyles.centered} />
+          <Skeleton width="100%" height={normalize(1)} borderRadius={0} />
+          <Skeleton width="100%" height={normalize(48)} borderRadius={normalize(8)} />
+          <Skeleton width="70%" height={normalize(40)} borderRadius={normalize(12)} style={skeletonStyles.centered} />
+        </View>
+
+        {[0, 1, 2, 3].map((item) => (
+          <View key={item} style={skeletonStyles.section}>
+            <Skeleton width="42%" height={normalize(18)} borderRadius={normalize(6)} />
+            <Skeleton width="100%" height={normalize(52)} borderRadius={normalize(12)} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  loadingState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  loadingText: {
-    color: palette.stone,
-  },
   header: {
     height: hp(25),
   },
@@ -503,6 +512,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 20,
     right: spacing.md,
+  },
+  refreshingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: palette.white,
+    opacity: 0.85,
   },
   helpOverlay: {
     position: 'absolute',
@@ -611,5 +627,31 @@ const styles = StyleSheet.create({
   readOnlyNote: {
     color: palette.stone,
     marginBottom: spacing.sm,
+  },
+});
+
+const skeletonStyles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    backgroundColor: palette.creme,
+  },
+  content: {
+    padding: spacing.md,
+    gap: spacing.md,
+    marginTop: -hp(8),
+  },
+  helpCard: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: spacing.md,
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+  },
+  centered: {
+    alignSelf: 'center',
+  },
+  section: {
+    gap: spacing.sm,
   },
 });

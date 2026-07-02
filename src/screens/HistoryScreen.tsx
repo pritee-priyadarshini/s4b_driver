@@ -7,7 +7,6 @@ import {
   Modal,
   Dimensions,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +18,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { HeroHeader } from '../components/HeroHeader';
+import { Skeleton } from '../components/Skeleton';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { useAuth } from '../store/AuthContext';
 import { usePickupStore } from '../store/pickupStore';
@@ -129,6 +129,8 @@ export function HistoryScreen({ navigation }: Props) {
     () => pastPickups.filter((i) => i.status === 'Delivered').length,
     [pastPickups],
   );
+
+  const showHistorySkeleton = loadingPast && pastPickups.length === 0;
 
   const renderHeader = () => (
     <HeroHeader
@@ -300,15 +302,27 @@ export function HistoryScreen({ navigation }: Props) {
           <>
             {renderHeader()}
             <View style={styles.mainContent}>
-              {renderStatsCard()}
-              <AppText variant="h7" style={styles.sectionTitle}>
-                Recent collections
-              </AppText>
-              <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
-                {loadingPast
-                  ? 'Loading history…'
-                  : `${pastPickups.length} trip${pastPickups.length !== 1 ? 's' : ''} on record`}
-              </AppText>
+              {showHistorySkeleton ? (
+                <>
+                  <AppText variant="h7" style={styles.sectionTitle}>
+                    Recent collections
+                  </AppText>
+                  <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
+                    Loading history…
+                  </AppText>
+                  <HistorySkeleton />
+                </>
+              ) : (
+                <>
+                  {renderStatsCard()}
+                  <AppText variant="h7" style={styles.sectionTitle}>
+                    Recent collections
+                  </AppText>
+                  <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
+                    {`${pastPickups.length} trip${pastPickups.length !== 1 ? 's' : ''} on record`}
+                  </AppText>
+                </>
+              )}
             </View>
           </>
         }
@@ -316,14 +330,7 @@ export function HistoryScreen({ navigation }: Props) {
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: hp(1.6) }} />}
         ListEmptyComponent={
-          loadingPast ? (
-            <View style={styles.empty}>
-              <ActivityIndicator size="large" color={ACCENT} />
-              <AppText variant="bodySmall" color={palette.stone}>
-                Loading collection history…
-              </AppText>
-            </View>
-          ) : (
+          showHistorySkeleton ? null : (
             <View style={styles.empty}>
               <Ionicons name="time-outline" size={normalize(52)} color={ACCENT_SOFT} />
               <AppText variant="bodyBold" color={palette.stone}>No collections yet</AppText>
@@ -359,6 +366,40 @@ export function HistoryScreen({ navigation }: Props) {
         </Pressable>
       </Modal>
     </Screen>
+  );
+}
+
+function HistorySkeleton() {
+  return (
+    <View style={skeletonStyles.wrap}>
+      <View style={skeletonStyles.statsCard}>
+        <View style={skeletonStyles.statsRow}>
+          {[0, 1, 2].map((item) => (
+            <View key={item} style={skeletonStyles.statBox}>
+              <Skeleton width={normalize(40)} height={normalize(40)} borderRadius={normalize(12)} />
+              <Skeleton width={wp(14)} height={normalize(16)} borderRadius={normalize(4)} />
+              <Skeleton width={wp(18)} height={normalize(12)} borderRadius={normalize(4)} />
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {[0, 1, 2].map((item) => (
+        <View key={item} style={skeletonStyles.card}>
+          <View style={skeletonStyles.cardTopRow}>
+            <Skeleton width={wp(24)} height={normalize(24)} borderRadius={normalize(8)} />
+            <Skeleton width={wp(20)} height={normalize(14)} borderRadius={normalize(4)} />
+          </View>
+          <Skeleton width="68%" height={normalize(20)} borderRadius={normalize(6)} />
+          <Skeleton width="88%" height={normalize(14)} borderRadius={normalize(4)} />
+          <View style={skeletonStyles.infoRow}>
+            <Skeleton width="48%" height={normalize(64)} borderRadius={normalize(12)} />
+            <Skeleton width="48%" height={normalize(64)} borderRadius={normalize(12)} />
+          </View>
+          <Skeleton width="100%" height={normalize(44)} borderRadius={normalize(12)} />
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -638,5 +679,46 @@ const styles = StyleSheet.create({
     paddingTop: hp(1.2),
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.strokecream,
+  },
+});
+
+const skeletonStyles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: wp(4),
+    gap: hp(1.6),
+  },
+  statsCard: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: wp(4),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+    gap: hp(0.5),
+  },
+  card: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(16),
+    padding: wp(4),
+    gap: hp(1.2),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.strokecream,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: wp(2.5),
   },
 });

@@ -1,6 +1,8 @@
-﻿import { Alert, AppState, Linking, Platform } from 'react-native';
+﻿import { AppState, Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
+
+import { showAppSettingsPrompt } from '../utils/appAlert';
 
 import {
   notificationsService,
@@ -53,26 +55,18 @@ function showNotificationSettingsAlert(): void {
   if (permissionSettingsAlertShown) return;
   permissionSettingsAlertShown = true;
 
-  Alert.alert(
+  showAppSettingsPrompt(
     'Enable notifications',
     'Allow notifications to receive pickup assignments and trip updates.',
-    [
-      {
-        text: 'Not now',
-        style: 'cancel',
-        onPress: () => {
-          permissionSettingsAlertShown = false;
-        },
-      },
-      {
-        text: 'Open Settings',
-        onPress: () => {
-          permissionSettingsAlertShown = false;
-          Linking.openSettings();
-        },
-      },
-    ],
+    {
+      cancelText: 'Not now',
+      confirmText: 'Open Settings',
+    },
   );
+
+  setTimeout(() => {
+    permissionSettingsAlertShown = false;
+  }, 500);
 }
 
 /**

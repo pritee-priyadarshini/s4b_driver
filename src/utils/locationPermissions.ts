@@ -1,40 +1,34 @@
-import { Alert, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { Linking } from 'react-native';
+
+import { showAppSettingsPrompt } from './appAlert';
 
 let settingsAlertShown = false;
 
 function getSettingsMessage(kind: 'foreground' | 'background'): string {
   if (kind === 'background') {
-    return Platform.OS === 'ios'
-      ? 'To keep sharing your location while you are live and the app is in the background, open Settings → Saveful Driver → Location and choose "Always".'
-      : 'To keep sharing your location while you are live and the app is in the background, open Settings → Apps → Saveful Driver → Permissions → Location and choose "Allow all the time".';
+    return 'To keep sharing your location while you are live and the app is in the background, open Settings and set Location to "Always" on iOS or "Allow all the time" on Android.';
   }
 
-  return Platform.OS === 'ios'
-    ? 'Location is required to go live and route you to pickups. Open Settings → Saveful Driver → Location and allow access — choose "Always" so tracking works in the background.'
-    : 'Location is required to go live and route you to pickups. Open Settings → Apps → Saveful Driver → Permissions → Location and choose "Allow all the time" so tracking works in the background.';
+  return 'Location is required to go live and route you to pickups. Open Settings and allow location access — preferably "Always" / "Allow all the time" for background tracking.';
 }
 
 export function showLocationSettingsAlert(kind: 'foreground' | 'background' = 'foreground'): void {
   if (settingsAlertShown) return;
   settingsAlertShown = true;
 
-  Alert.alert('Turn on location in Settings', getSettingsMessage(kind), [
+  showAppSettingsPrompt(
+    'Turn on location in Settings',
+    getSettingsMessage(kind),
     {
-      text: 'Not now',
-      style: 'cancel',
-      onPress: () => {
-        settingsAlertShown = false;
-      },
+      cancelText: 'Not now',
+      confirmText: 'Open Settings',
     },
-    {
-      text: 'Open Settings',
-      onPress: () => {
-        settingsAlertShown = false;
-        void Linking.openSettings();
-      },
-    },
-  ]);
+  );
+
+  setTimeout(() => {
+    settingsAlertShown = false;
+  }, 500);
 }
 
 export type DriverLocationPermissionResult = {
