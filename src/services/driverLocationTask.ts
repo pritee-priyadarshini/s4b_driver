@@ -145,7 +145,7 @@ export async function startDriverLocationTracking(
     return { ok: false };
   }
 
-  if (!permission.backgroundGranted) {
+  if (!permission.backgroundGranted && !permission.backgroundSkipped && permission.needsSettings) {
     showLocationSettingsAlert('background');
   }
 

@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppText } from '../components/AppText';
+import { AppBottomSheet } from '../components/AppBottomSheet';
 import { Screen } from '../components/Screen';
 import { HeroHeader } from '../components/HeroHeader';
 import { Skeleton } from '../components/Skeleton';
@@ -265,7 +266,7 @@ export function DashboardScreen() {
     if (tryingToGoLive && useDriverShiftStore.getState().liveStatus === 'offline') {
       showAppError(
         'Location required',
-        'To go live, allow location access — preferably "Always" on iOS or "Allow all the time" on Android — so we can track your route in the background. Open Settings if you previously denied permission.',
+        'To go live, allow location access when prompted. For background tracking on Android, choose "While using the app" first — then tap Continue on the next screen to open Settings and select "Allow all the time".',
       );
       return;
     }
@@ -671,29 +672,25 @@ export function DashboardScreen() {
         }
       />
 
-      <Modal visible={!!foodModal} transparent animationType="slide" onRequestClose={() => setFoodModal(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setFoodModal(null)}>
-          <Pressable style={styles.foodSheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.sheetHandle} />
-            <AppText variant="h6" style={styles.sheetTitle}>{foodModal?.title}</AppText>
-            <AppText variant="bodySmall" color={palette.stone} style={{ marginBottom: hp(1.5) }}>
-              Items to collect from restaurant
-            </AppText>
-            {foodModal?.items.map((food) => (
-              <View key={food.name} style={styles.foodRow}>
-                <AppText variant="body" style={{ flex: 1 }}>{food.name}</AppText>
-                <AppText variant="bodyBold" color={palette.stone}>{food.qty} kg</AppText>
-              </View>
-            ))}
-            <View style={styles.foodTotal}>
-              <AppText variant="bodyBold">Total</AppText>
-              <AppText variant="bodyBold">
-                {foodModal ? itemQty(foodModal.items) : 0} kg
-              </AppText>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <AppBottomSheet
+        visible={!!foodModal}
+        onClose={() => setFoodModal(null)}
+        title={foodModal?.title}
+        subtitle="Items to collect from restaurant"
+      >
+        {foodModal?.items.map((food) => (
+          <View key={food.name} style={styles.foodRow}>
+            <AppText variant="body" style={{ flex: 1 }}>{food.name}</AppText>
+            <AppText variant="bodyBold" color={palette.stone}>{food.qty} kg</AppText>
+          </View>
+        ))}
+        <View style={styles.foodTotal}>
+          <AppText variant="bodyBold">Total</AppText>
+          <AppText variant="bodyBold">
+            {foodModal ? itemQty(foodModal.items) : 0} kg
+          </AppText>
+        </View>
+      </AppBottomSheet>
 
       <Modal visible={tripVisible && !!activeTrip && !!tripMapConfig} animationType="slide" onRequestClose={() => setTripVisible(false)}>
         {activeTrip && tripMapConfig ? (
@@ -1221,30 +1218,6 @@ const styles = StyleSheet.create({
     paddingVertical: hp(8),
     paddingHorizontal: wp(10),
     marginHorizontal: wp(4),
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  foodSheet: {
-    backgroundColor: palette.white,
-    borderTopLeftRadius: normalize(24),
-    borderTopRightRadius: normalize(24),
-    paddingHorizontal: wp(5),
-    paddingBottom: hp(5),
-    paddingTop: hp(1),
-  },
-  sheetHandle: {
-    width: normalize(40),
-    height: normalize(4),
-    borderRadius: 2,
-    backgroundColor: palette.strokecream,
-    alignSelf: 'center',
-    marginBottom: hp(1.5),
-  },
-  sheetTitle: {
-    textTransform: 'none',
   },
   foodRow: {
     flexDirection: 'row',

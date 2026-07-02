@@ -1,8 +1,10 @@
 import React from 'react';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from './AppText';
+import { modalLayout } from './modalLayout';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
 import { useAlertStore, type AppAlertButton, type AppAlertVariant } from '../store/alertStore';
@@ -38,9 +40,11 @@ function variantMeta(variant: AppAlertVariant) {
 
 function AlertButton({
   button,
+  horizontal,
   onPress,
 }: {
   button: AppAlertButton;
+  horizontal: boolean;
   onPress: () => void;
 }) {
   const isCancel = button.style === 'cancel';
@@ -51,6 +55,7 @@ function AlertButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        horizontal && styles.buttonHorizontal,
         isCancel && styles.buttonCancel,
         isDestructive && styles.buttonDestructive,
         !isCancel && !isDestructive && styles.buttonPrimary,
@@ -59,6 +64,7 @@ function AlertButton({
     >
       <AppText
         variant="bodyBold"
+        numberOfLines={2}
         style={[
           styles.buttonText,
           isCancel && styles.buttonTextCancel,
@@ -79,8 +85,10 @@ export function AppAlertModal() {
   const message = useAlertStore((s) => s.message);
   const buttons = useAlertStore((s) => s.buttons);
   const hide = useAlertStore((s) => s.hide);
+  const insets = useSafeAreaInsets();
 
   const meta = variantMeta(variant);
+  const horizontalActions = buttons.length > 1;
 
   const handlePress = (button: AppAlertButton) => {
     hide();
@@ -95,27 +103,48 @@ export function AppAlertModal() {
       statusBarTranslucent
       onRequestClose={hide}
     >
-      <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={hide} accessibilityRole="button" />
+      <View
+        style={[
+          modalLayout.centeredOverlay,
+          {
+            paddingTop: insets.top + hp(2),
+            paddingBottom: insets.bottom + hp(2),
+          },
+        ]}
+      >
+        <Pressable style={modalLayout.backdrop} onPress={hide} accessibilityRole="button" />
 
-        <View style={styles.card}>
-          <View style={[styles.iconWrap, { backgroundColor: meta.background }]}>
-            <Ionicons name={meta.icon} size={normalize(34)} color={meta.color} />
-          </View>
+        <View style={modalLayout.centeredCard}>
+          <ScrollView
+            bounces={false}
+            showsVerticalScrollIndicator={message.length > 140}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={modalLayout.centeredBody}
+          >
+            <View style={[styles.iconWrap, { backgroundColor: meta.background }]}>
+              <Ionicons name={meta.icon} size={normalize(34)} color={meta.color} />
+            </View>
 
-          <AppText variant="h6" style={styles.title}>
-            {title}
-          </AppText>
+            <AppText variant="h6" style={styles.title}>
+              {title}
+            </AppText>
 
-          <AppText variant="bodySmall" color={palette.textMuted} style={styles.message}>
-            {message}
-          </AppText>
+            <AppText variant="bodySmall" color={palette.textMuted} style={styles.message}>
+              {message}
+            </AppText>
+          </ScrollView>
 
-          <View style={[styles.actions, buttons.length > 1 && styles.actionsRow]}>
+          <View
+            style={[
+              modalLayout.centeredFooter,
+              horizontalActions && modalLayout.centeredFooterRow,
+            ]}
+          >
             {buttons.map((button, index) => (
               <AlertButton
                 key={`${button.text}-${index}`}
                 button={button}
+                horizontal={horizontalActions}
                 onPress={() => handlePress(button)}
               />
             ))}
@@ -127,47 +156,12 @@ export function AppAlertModal() {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: wp(6),
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(26, 26, 27, 0.45)',
-  },
-  card: {
-    width: '100%',
-    maxWidth: normalize(360),
-    backgroundColor: palette.white,
-    borderRadius: normalize(24),
-    borderWidth: 1,
-    borderColor: palette.strokecream,
-    paddingHorizontal: wp(5),
-    paddingTop: hp(2.4),
-    paddingBottom: hp(2),
-    alignItems: 'center',
-    gap: hp(1),
-    ...Platform.select({
-      ios: {
-        shadowColor: palette.black,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.12,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
   iconWrap: {
     width: normalize(64),
     height: normalize(64),
     borderRadius: normalize(32),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: hp(0.4),
   },
   title: {
     textAlign: 'center',
@@ -181,22 +175,20 @@ const styles = StyleSheet.create({
     textTransform: 'none',
     lineHeight: normalize(20),
     paddingHorizontal: wp(1),
-  },
-  actions: {
     width: '100%',
-    gap: hp(1),
-    marginTop: hp(1.2),
-  },
-  actionsRow: {
-    flexDirection: 'row',
   },
   button: {
-    flex: 1,
+    width: '100%',
     minHeight: normalize(48),
     borderRadius: normalize(14),
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: wp(3),
+    paddingVertical: hp(1.2),
+  },
+  buttonHorizontal: {
+    flex: 1,
+    width: undefined,
   },
   buttonPrimary: {
     backgroundColor: palette.eggplant,
@@ -213,6 +205,7 @@ const styles = StyleSheet.create({
     opacity: 0.88,
   },
   buttonText: {
+    textAlign: 'center',
     textTransform: 'none',
     fontSize: normalize(15),
   },

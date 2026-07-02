@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from './AppText';
+import { BOTTOM_SHEET_MAX_HEIGHT, modalLayout } from './modalLayout';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
 
@@ -75,8 +76,8 @@ export function SavefulModal({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" />
+      <View style={modalLayout.bottomOverlay}>
+        <Pressable style={modalLayout.backdrop} onPress={onClose} accessibilityRole="button" />
 
         <View
           style={[
@@ -87,7 +88,7 @@ export function SavefulModal({
             },
           ]}
         >
-          <View style={styles.dragHandle} />
+          <View style={modalLayout.sheetHandle} />
 
           <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={10}>
             <Ionicons name="close" size={normalize(22)} color={palette.textMuted} />
@@ -95,9 +96,11 @@ export function SavefulModal({
 
           <ScrollView
             ref={scrollRef}
-            showsVerticalScrollIndicator={keyboardHeight > 0}
-            keyboardShouldPersistTaps="handled"
+            style={modalLayout.bottomSheetScroll}
             contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={keyboardHeight > 0}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
           >
             <Image
               source={require('../../assets/intro/logo.png')}
@@ -134,16 +137,8 @@ export function SavefulModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(26, 26, 27, 0.45)',
-  },
   sheet: {
-    maxHeight: '92%',
+    maxHeight: BOTTOM_SHEET_MAX_HEIGHT,
     backgroundColor: palette.creme,
     borderTopLeftRadius: normalize(28),
     borderTopRightRadius: normalize(28),
@@ -151,14 +146,7 @@ const styles = StyleSheet.create({
     borderColor: palette.strokecream,
     paddingTop: hp(1.2),
     paddingHorizontal: wp(5),
-  },
-  dragHandle: {
-    alignSelf: 'center',
-    width: wp(12),
-    height: normalize(4),
-    borderRadius: normalize(2),
-    backgroundColor: palette.creme2,
-    marginBottom: hp(1),
+    overflow: 'hidden',
   },
   closeBtn: {
     position: 'absolute',
