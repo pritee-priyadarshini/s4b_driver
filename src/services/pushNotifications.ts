@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import * as Application from 'expo-application';
 
 import { showAppSettingsPrompt } from '../utils/appAlert';
+import { extractApiMessage } from '../utils/apiError';
 
 import {
   notificationsService,
@@ -10,17 +11,6 @@ import {
   type RegisterPushTokenPayload,
 } from './notifications.service';
 
-/**
- * True when running inside Expo Go.
- *
- * expo-notifications remote push APIs (getExpoPushTokenAsync, addPushTokenListener, etc.)
- * were removed from Expo Go in SDK 53. Importing the module at the top level or calling
- * any of those APIs inside Expo Go throws "runtime not ready" and crashes the app.
- *
- * All push-notification code is guarded by this flag and loaded via require() at
- * call-time so the problematic modules are never resolved in Expo Go.
- * Use a development build to test push notifications end-to-end.
- */
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
 const FIREBASE_ENABLED = Constants.expoConfig?.extra?.firebaseEnabled === true;
 
@@ -30,6 +20,98 @@ let tapUnsubscribe: (() => void) | null = null;
 let appStateUnsubscribe: (() => void) | null = null;
 let permissionSettingsAlertShown = false;
 let tokenRegistrationInFlight = false;
+let diagnosticsLogged = false;
+
+type AxiosLikeError = {
+  isAxiosError?: boolean;
+  response?: { status?: number; data?: unknown };
+  message?: string;
+};
+
+function isAxiosError(error: unknown): error is AxiosLikeError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'isAxiosError' in error &&
+    (error as AxiosLikeError).isAxiosError === true
+  );
+}
+
+function pushLog(message: string, detail?: Record<string, unknown>): void {
+  if (detail) {
+    console.log(`[Push] ${message}`, detail);
+    return;
+  }
+  console.log(`[Push] ${message}`);
+}
+
+function pushWarn(message: string, detail?: Record<string, unknown>): void {
+  if (detail) {
+    console.warn(`[Push] ${message}`, detail);
+    return;
+  }
+  console.warn(`[Push] ${message}`);
+}
+
+function pushError(message: string, error: unknown, detail?: Record<string, unknown>): void {
+  const payload: Record<string, unknown> = { ...detail };
+
+  if (isAxiosError(error)) {
+    payload.httpStatus = error.response?.status;
+    payload.apiMessage = extractApiMessage(error.response?.data);
+    payload.apiBody = error.response?.data;
+    payload.requestMessage = error.message;
+  } else if (error instanceof Error) {
+    payload.errorName = error.name;
+    payload.errorMessage = error.message;
+  } else {
+    payload.error = error;
+  }
+
+  console.error(`[Push] ERROR: ${message}`, payload);
+}
+
+export function formatPushError(error: unknown, fallback: string): string {
+  if (isAxiosError(error)) {
+    const status = error.response?.status;
+    const apiMessage = extractApiMessage(error.response?.data);
+    if (status && apiMessage) return `${status} — ${apiMessage}`;
+    if (apiMessage) return apiMessage;
+    if (status) return `Request failed (${status})`;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+export function logPushEnvironmentOnce(): void {
+  if (diagnosticsLogged) return;
+  diagnosticsLogged = true;
+
+  pushLog('Environment', {
+    platform: Platform.OS,
+    expoGo: IS_EXPO_GO,
+    firebaseEnabled: FIREBASE_ENABLED,
+    appBundle: getAppBundle(),
+    appVersion: Application.nativeApplicationVersion,
+    appBuild: Application.nativeBuildVersion,
+    tokenMode: __DEV__ ? 'dev' : 'prod',
+    targetApp: 'driver',
+  });
+
+  if (IS_EXPO_GO) {
+    pushWarn('Running in Expo Go — remote FCM push is not supported. Use a dev client build.');
+  }
+
+  if (!FIREBASE_ENABLED) {
+    pushWarn(
+      'firebaseEnabled=false in this build. google-services.json was not bundled at build time. Rebuild after EAS GOOGLE_SERVICES_JSON secret is set.',
+    );
+  }
+}
 
 function isPermissionGranted(
   permissions: { granted?: boolean; status?: string },
@@ -49,6 +131,7 @@ async function setupAndroidNotificationChannel(): Promise<void> {
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
   });
+  pushLog('Android notification channel "default" ready');
 }
 
 function showNotificationSettingsAlert(): void {
@@ -69,10 +152,6 @@ function showNotificationSettingsAlert(): void {
   }, 500);
 }
 
-/**
- * Requests the OS notification permission when not yet granted.
- * Shows the system dialog on first ask; directs to Settings if permanently denied.
- */
 export async function ensureNotificationPermission(
   options: { prompt?: boolean } = {},
 ): Promise<boolean> {
@@ -82,9 +161,14 @@ export async function ensureNotificationPermission(
   await setupAndroidNotificationChannel();
 
   let permissions = await Notifications.getPermissionsAsync();
+  pushLog('Current notification permission', {
+    status: permissions.status,
+    granted: permissions.granted,
+    canAskAgain: permissions.canAskAgain,
+  });
 
   if (!isPermissionGranted(permissions) && prompt) {
-    console.log('[Push] Requesting notification permission');
+    pushLog('Requesting notification permission from OS');
     permissions = await Notifications.requestPermissionsAsync({
       ios: {
         allowAlert: true,
@@ -92,10 +176,15 @@ export async function ensureNotificationPermission(
         allowSound: true,
       },
     });
+    pushLog('OS permission result', {
+      status: permissions.status,
+      granted: permissions.granted,
+      canAskAgain: permissions.canAskAgain,
+    });
   }
 
   if (!isPermissionGranted(permissions)) {
-    console.log('[Push] Notification permission not granted', {
+    pushWarn('Notification permission not granted', {
       status: permissions.status,
       canAskAgain: permissions.canAskAgain,
     });
@@ -114,8 +203,8 @@ export async function ensureNotificationPermission(
     const enabled =
       authStatus === AuthorizationStatus.AUTHORIZED ||
       authStatus === AuthorizationStatus.PROVISIONAL;
+    pushLog('iOS FCM permission status', { authStatus, enabled });
     if (!enabled) {
-      console.log('[Push] iOS remote notification permission not granted');
       if (prompt) showNotificationSettingsAlert();
       return false;
     }
@@ -139,6 +228,8 @@ export function isPushSupportedOnDevice(): boolean {
 }
 
 export async function readNotificationPermissionState(): Promise<NotificationPermissionState> {
+  logPushEnvironmentOnce();
+
   if (!isPushSupportedOnDevice()) {
     return {
       supported: false,
@@ -189,10 +280,12 @@ export function openNotificationSystemSettings(): void {
 export function setupPushPermissionRetryOnAppFocus(): void {
   if (IS_EXPO_GO || !FIREBASE_ENABLED || appStateUnsubscribe) return;
 
+  pushLog('App focus listener enabled — will retry silent token registration');
   appStateUnsubscribe = AppState.addEventListener('change', (nextState) => {
     if (nextState === 'active') {
-      // Re-check silently after user may have enabled notifications in Settings.
-      void registerDeviceToken({ prompt: false });
+      void registerDeviceToken({ prompt: false }).catch((error) => {
+        pushError('Silent token re-registration on app focus failed', error);
+      });
     }
   }).remove;
 }
@@ -224,59 +317,89 @@ function buildTokenPayload(
   };
 }
 
+function maskToken(token: string): string {
+  if (token.length <= 12) return token;
+  return `${token.slice(0, 8)}…${token.slice(-6)}`;
+}
+
 export async function registerDeviceToken(
   options: { prompt?: boolean } = {},
 ): Promise<void> {
-  if (Platform.OS !== 'ios' && Platform.OS !== 'android') return;
+  logPushEnvironmentOnce();
+
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    pushWarn('Unsupported platform for push registration', { platform: Platform.OS });
+    return;
+  }
 
   if (IS_EXPO_GO) {
-    console.log('[Push] Skipped - remote push removed from Expo Go (SDK 53+). Use a dev build.');
-    return;
+    throw new Error('Expo Go does not support FCM. Install the dev client APK and run npm run start:dev.');
   }
 
   if (!FIREBASE_ENABLED) {
-    console.log(
-      '[Push] Skipped — Firebase not configured (google-services.json missing). ' +
-        'Add google-services.json and rebuild the dev client to enable FCM push.',
-      { expoGo: IS_EXPO_GO, firebaseEnabled: FIREBASE_ENABLED },
+    throw new Error(
+      'Firebase is not enabled in this build (firebaseEnabled=false). Rebuild the dev client after GOOGLE_SERVICES_JSON is set in EAS.',
     );
-    return;
   }
 
   if (tokenRegistrationInFlight) {
-    console.log('[Push] Token registration already in progress, skipping duplicate call');
+    pushLog('Token registration already in progress — skipping duplicate call');
     return;
   }
 
   tokenRegistrationInFlight = true;
+  pushLog('Starting device token registration', { prompt: options.prompt !== false });
+
   try {
     const { default: messaging } =
       require('@react-native-firebase/messaging') as typeof import('@react-native-firebase/messaging');
 
     const permitted = await ensureNotificationPermission({ prompt: options.prompt !== false });
-    if (!permitted) return;
-
-    const fcmToken = await messaging().getToken();
-    if (!fcmToken) {
-      console.log('[Push] No FCM token available');
-      return;
+    if (!permitted) {
+      throw new Error('Notification permission was denied. Enable notifications in system settings.');
     }
 
-    await notificationsService.registerToken(buildTokenPayload(fcmToken, 'fcm'));
-    console.log('[Push] FCM token registered');
+    pushLog('Requesting FCM token from Firebase');
+    const fcmToken = await messaging().getToken();
+    if (!fcmToken) {
+      throw new Error('Firebase returned an empty FCM token');
+    }
+
+    const payload = buildTokenPayload(fcmToken, 'fcm');
+    pushLog('Registering token with backend', {
+      tokenPreview: maskToken(fcmToken),
+      platform: payload.platform,
+      tokenType: payload.tokenType,
+      tokenMode: payload.tokenMode,
+      appBundle: payload.appBundle,
+      targetApp: payload.targetApp,
+    });
+
+    const response = await notificationsService.registerToken(payload);
+    const data = response.data as { message?: string; targetApp?: string } | undefined;
+    pushLog('FCM token registered successfully', {
+      tokenPreview: maskToken(fcmToken),
+      backendMessage: data?.message,
+      backendTargetApp: data?.targetApp,
+    });
 
     if (!tokenRefreshUnsubscribe) {
       tokenRefreshUnsubscribe = messaging().onTokenRefresh(async (newToken) => {
         try {
+          pushLog('FCM token refreshed — re-registering with backend', {
+            tokenPreview: maskToken(newToken),
+          });
           await notificationsService.registerToken(buildTokenPayload(newToken, 'fcm'));
-          console.log('[Push] FCM token refreshed and re-registered');
+          pushLog('Refreshed FCM token registered successfully');
         } catch (error) {
-          console.log('[Push] Token refresh registration failed', error);
+          pushError('Token refresh registration failed', error);
         }
       });
+      pushLog('FCM onTokenRefresh listener attached');
     }
   } catch (error) {
-    console.log('[Push] Device token registration failed', error);
+    pushError('Device token registration failed', error);
+    throw error;
   } finally {
     tokenRegistrationInFlight = false;
   }
@@ -288,18 +411,21 @@ export async function unregisterDeviceToken(): Promise<void> {
   if (tokenRefreshUnsubscribe) {
     tokenRefreshUnsubscribe();
     tokenRefreshUnsubscribe = null;
+    pushLog('FCM onTokenRefresh listener removed');
   }
 
   if (!FIREBASE_ENABLED) {
-    console.log('[Push] Logout — skipped token unregister (Firebase not configured, no FCM token was registered)');
+    pushLog('Logout — skipped token unregister (Firebase not configured in this build)');
     return;
   }
 
   try {
-    await notificationsService.unregisterAllTokens();
-    console.log('[Push] All tokens unregistered');
+    pushLog('Unregistering all driver tokens on backend');
+    const response = await notificationsService.unregisterAllTokens();
+    const data = response.data as { count?: number } | undefined;
+    pushLog('Driver tokens unregistered', { count: data?.count });
   } catch (error) {
-    console.log('[Push] Token unregister failed', error);
+    pushError('Backend token unregister failed', error);
   }
 
   if (!IS_EXPO_GO) {
@@ -307,16 +433,18 @@ export async function unregisterDeviceToken(): Promise<void> {
       const { default: messaging } =
         require('@react-native-firebase/messaging') as typeof import('@react-native-firebase/messaging');
       await messaging().deleteToken();
+      pushLog('Local FCM token deleted');
     } catch (error) {
-      console.log('[Push] FCM deleteToken failed', error);
+      pushError('FCM deleteToken failed', error);
     }
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ foreground handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 export function setupForegroundNotificationHandler(): void {
-  if (IS_EXPO_GO || !FIREBASE_ENABLED) return;
+  if (IS_EXPO_GO || !FIREBASE_ENABLED) {
+    pushWarn('Foreground handler not started', { expoGo: IS_EXPO_GO, firebaseEnabled: FIREBASE_ENABLED });
+    return;
+  }
   if (foregroundUnsubscribe) return;
 
   const Notifications =
@@ -325,23 +453,28 @@ export function setupForegroundNotificationHandler(): void {
     require('@react-native-firebase/messaging') as typeof import('@react-native-firebase/messaging');
 
   foregroundUnsubscribe = messaging().onMessage(async (remoteMessage) => {
-    console.log('[Push] Foreground message received:', remoteMessage.messageId, remoteMessage.notification?.title);
-    // Firebase does not auto-display notifications when the app is in the foreground.
-    // Schedule a local notification via expo-notifications so the user sees a banner.
+    pushLog('Foreground FCM message received', {
+      messageId: remoteMessage.messageId,
+      title: remoteMessage.notification?.title,
+      body: remoteMessage.notification?.body,
+      data: remoteMessage.data,
+    });
+
     if (remoteMessage.notification?.title || remoteMessage.notification?.body) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: remoteMessage.notification.title ?? '',
           body: remoteMessage.notification.body ?? '',
-          // Stamp so addNotificationResponseReceivedListener can tell this apart from
-          // a Firebase remote notification tap (which goes through onNotificationOpenedApp).
           data: { ...(remoteMessage.data ?? {}), _localNotif: '1' },
           sound: true,
         },
         trigger: null,
       });
+      pushLog('Foreground banner scheduled via expo-notifications');
     }
   });
+
+  pushLog('Foreground FCM handler attached');
 }
 
 export function teardownForegroundNotificationHandler(): void {
@@ -349,9 +482,6 @@ export function teardownForegroundNotificationHandler(): void {
   foregroundUnsubscribe = null;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ notification-tap handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-/** Normalized payload passed to the onOpen callback regardless of environment. */
 export type NotificationPayload = {
   messageId?: string;
   data?: Record<string, string>;
@@ -362,12 +492,12 @@ export async function setupNotificationOpenedHandler(
   onOpen: (payload: NotificationPayload) => void,
 ): Promise<void> {
   if (IS_EXPO_GO) {
-    console.log('[Push] Skipped - notification tap handler not available in Expo Go (SDK 53+).');
+    pushWarn('Notification tap handler skipped — Expo Go does not support FCM');
     return;
   }
 
   if (!FIREBASE_ENABLED) {
-    console.log('[Push] Skipped - Firebase not configured for notification tap handling.');
+    pushWarn('Notification tap handler skipped — Firebase not enabled in this build');
     return;
   }
 
@@ -376,9 +506,11 @@ export async function setupNotificationOpenedHandler(
   const { default: messaging } =
     require('@react-native-firebase/messaging') as typeof import('@react-native-firebase/messaging');
 
-  // Background tap: app was in background state when the notification was tapped.
   const firebaseUnsub = messaging().onNotificationOpenedApp((remoteMessage) => {
-    console.log('[Push] Notification opened app from background:', remoteMessage.messageId);
+    pushLog('Notification opened app from background', {
+      messageId: remoteMessage.messageId,
+      data: remoteMessage.data,
+    });
     onOpen({
       messageId: remoteMessage.messageId,
       data: remoteMessage.data as Record<string, string> | undefined,
@@ -386,13 +518,13 @@ export async function setupNotificationOpenedHandler(
     });
   });
 
-  // Foreground tap: tap on a banner we displayed via scheduleNotificationAsync.
-  // Guard: only process locally-scheduled notifications (_localNotif marker).
-  // Firebase background/killed taps are handled exclusively by onNotificationOpenedApp above.
   const localNotifSub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = (response.notification.request.content.data ?? {}) as Record<string, string>;
-    if (!data._localNotif) return; // not a locally scheduled notification — ignore
-    console.log('[Push] Foreground notification tapped:', response.notification.request.identifier);
+    if (!data._localNotif) return;
+    pushLog('Foreground notification tapped', {
+      identifier: response.notification.request.identifier,
+      data,
+    });
     onOpen({
       messageId: response.notification.request.identifier,
       data,
@@ -408,16 +540,20 @@ export async function setupNotificationOpenedHandler(
     localNotifSub.remove();
   };
 
-  // Kill-state tap: app was killed when the notification was tapped.
   const initialMessage = await messaging().getInitialNotification();
   if (initialMessage) {
-    console.log('[Push] App opened from killed state via notification:', initialMessage.messageId);
+    pushLog('App opened from killed state via notification', {
+      messageId: initialMessage.messageId,
+      data: initialMessage.data,
+    });
     onOpen({
       messageId: initialMessage.messageId,
       data: initialMessage.data as Record<string, string> | undefined,
       notification: initialMessage.notification,
     });
   }
+
+  pushLog('Notification tap handlers attached');
 }
 
 export function teardownNotificationOpenedHandler(): void {

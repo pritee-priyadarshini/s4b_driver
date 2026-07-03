@@ -10,9 +10,10 @@ import {
   teardownForegroundNotificationHandler,
   teardownPushPermissionRetryOnAppFocus,
   unregisterDeviceToken as unregisterDeviceTokenService,
+  formatPushError,
+  logPushEnvironmentOnce,
   type NotificationPermissionState,
 } from '../services/pushNotifications';
-import { getUserFriendlyErrorMessage } from '../utils/apiError';
 
 export type { NotificationPermissionState };
 
@@ -22,6 +23,7 @@ interface NotificationsState {
   isUpdatingPermission: boolean;
   isRegisteringToken: boolean;
   error: string | null;
+  lastSuccessAt: string | null;
 }
 
 interface NotificationsActions {
@@ -41,6 +43,7 @@ const INITIAL: NotificationsState = {
   isUpdatingPermission: false,
   isRegisteringToken: false,
   error: null,
+  lastSuccessAt: null,
 };
 
 export const useNotificationsStore = create<NotificationsState & NotificationsActions>(
@@ -50,14 +53,15 @@ export const useNotificationsStore = create<NotificationsState & NotificationsAc
     fetchPermission: async () => {
       if (get().isFetchingPermission) return;
 
+      logPushEnvironmentOnce();
       set({ isFetchingPermission: true, error: null });
       try {
         const permission = await readNotificationPermissionState();
         set({ permission });
       } catch (error: unknown) {
-        set({
-          error: getUserFriendlyErrorMessage(error, 'Failed to load notification settings'),
-        });
+        const message = formatPushError(error, 'Failed to load notification settings');
+        console.error('[Push] fetchPermission failed', message);
+        set({ error: message });
       } finally {
         set({ isFetchingPermission: false });
       }
@@ -69,11 +73,14 @@ export const useNotificationsStore = create<NotificationsState & NotificationsAc
       set({ isUpdatingPermission: true, error: null });
       try {
         const permission = await requestNotificationPermissionFromSettings();
-        set({ permission });
-      } catch (error: unknown) {
         set({
-          error: getUserFriendlyErrorMessage(error, 'Failed to update notification permission'),
+          permission,
+          lastSuccessAt: permission.granted && permission.firebaseEnabled ? new Date().toISOString() : null,
         });
+      } catch (error: unknown) {
+        const message = formatPushError(error, 'Failed to update notification permission');
+        console.error('[Push] enableNotifications failed', message);
+        set({ error: message });
       } finally {
         set({ isUpdatingPermission: false });
       }
@@ -86,15 +93,20 @@ export const useNotificationsStore = create<NotificationsState & NotificationsAc
     registerDeviceToken: async (options = {}) => {
       if (get().isRegisteringToken) return;
 
+      logPushEnvironmentOnce();
       set({ isRegisteringToken: true, error: null });
       try {
         await registerDeviceTokenService(options);
         const permission = await readNotificationPermissionState();
-        set({ permission });
-      } catch (error: unknown) {
         set({
-          error: getUserFriendlyErrorMessage(error, 'Failed to register device for notifications'),
+          permission,
+          lastSuccessAt: new Date().toISOString(),
+          error: null,
         });
+      } catch (error: unknown) {
+        const message = formatPushError(error, 'Failed to register device for notifications');
+        console.error('[Push] registerDeviceToken failed', message);
+        set({ error: message, lastSuccessAt: null });
       } finally {
         set({ isRegisteringToken: false });
       }
@@ -104,14 +116,16 @@ export const useNotificationsStore = create<NotificationsState & NotificationsAc
       set({ error: null });
       try {
         await unregisterDeviceTokenService();
+        set({ lastSuccessAt: null });
       } catch (error: unknown) {
-        set({
-          error: getUserFriendlyErrorMessage(error, 'Failed to unregister notification token'),
-        });
+        const message = formatPushError(error, 'Failed to unregister notification token');
+        console.error('[Push] unregisterDeviceToken failed', message);
+        set({ error: message });
       }
     },
 
     setupPushHandlers: () => {
+      logPushEnvironmentOnce();
       setupForegroundNotificationHandler();
       setupPushPermissionRetryOnAppFocus();
     },

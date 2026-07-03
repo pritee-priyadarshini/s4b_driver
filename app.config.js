@@ -44,6 +44,7 @@ if (
       'Run once (from project root, with your local file present):\n' +
       '  npm run eas:firebase-secret\n' +
       'Or manually:\n' +
+      '  eas env:create development --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret\n' +
       '  eas env:create preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret\n' +
       '  eas env:create production --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret',
   );

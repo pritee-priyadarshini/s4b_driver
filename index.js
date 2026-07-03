@@ -21,6 +21,13 @@ if (!IS_EXPO_GO) {
 
   if (FIREBASE_ENABLED) {
     try {
+      const { logPushEnvironmentOnce } = require('./src/services/pushNotifications');
+      logPushEnvironmentOnce();
+    } catch {
+      // push module not ready yet
+    }
+
+    try {
       const { default: messaging } = require('@react-native-firebase/messaging');
       messaging().setBackgroundMessageHandler(async (remoteMessage) => {
         console.log('[Push] Background message received:', remoteMessage.messageId);

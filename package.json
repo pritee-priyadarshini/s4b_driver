@@ -5,11 +5,14 @@
   "main": "./index.js",
   "scripts": {
     "start": "expo start",
+    "start:dev": "expo start --dev-client",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "eas:firebase-secret": "eas env:create preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --force && eas env:create production --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --force"
+    "build:dev:android": "eas build --profile development --platform android",
+    "logs:android": "adb logcat *:S ReactNative:V ReactNativeJS:V Expo:V",
+    "eas:firebase-secret": "eas env:create development --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --force --non-interactive && eas env:create preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --force --non-interactive && eas env:create production --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --force --non-interactive"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -24,6 +27,7 @@
     "expo": "~54.0.0",
     "expo-application": "~7.0.8",
     "expo-asset": "~12.0.13",
+    "expo-dev-client": "~6.0.21",
     "expo-font": "~14.0.11",
     "expo-image-picker": "~17.0.11",
     "expo-location": "~19.0.8",

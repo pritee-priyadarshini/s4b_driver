@@ -52,9 +52,12 @@ export function NotificationPermissionSettings() {
   const permission = useNotificationsStore((s) => s.permission);
   const isFetchingPermission = useNotificationsStore((s) => s.isFetchingPermission);
   const isUpdatingPermission = useNotificationsStore((s) => s.isUpdatingPermission);
+  const isRegisteringToken = useNotificationsStore((s) => s.isRegisteringToken);
   const error = useNotificationsStore((s) => s.error);
+  const lastSuccessAt = useNotificationsStore((s) => s.lastSuccessAt);
   const fetchPermission = useNotificationsStore((s) => s.fetchPermission);
   const enableNotifications = useNotificationsStore((s) => s.enableNotifications);
+  const registerDeviceToken = useNotificationsStore((s) => s.registerDeviceToken);
   const openSystemSettings = useNotificationsStore((s) => s.openSystemSettings);
 
   useFocusEffect(
@@ -116,8 +119,33 @@ export function NotificationPermissionSettings() {
       </View>
 
       {error ? (
-        <AppText variant="bodySmall" color={palette.danger}>
-          {error}
+        <View style={styles.errorBox}>
+          <AppText variant="bodySmall" color={palette.danger}>
+            {error}
+          </AppText>
+          {permission.supported && permission.firebaseEnabled ? (
+            <Pressable
+              style={[styles.retryBtn, isRegisteringToken && styles.actionBtnDisabled]}
+              disabled={isRegisteringToken}
+              onPress={() => void registerDeviceToken({ prompt: false })}
+            >
+              <AppText variant="bodyBold" style={styles.retryBtnText}>
+                {isRegisteringToken ? 'Retrying…' : 'Retry registration'}
+              </AppText>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {lastSuccessAt && !error ? (
+        <AppText variant="caption" color={palette.kale}>
+          Token registered at {new Date(lastSuccessAt).toLocaleTimeString()}
+        </AppText>
+      ) : null}
+
+      {__DEV__ && permission ? (
+        <AppText variant="caption" color={palette.textMuted}>
+          Debug: firebaseEnabled={String(permission.firebaseEnabled)} · status={permission.status}
         </AppText>
       ) : null}
 
@@ -202,5 +230,24 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: {
     color: palette.primary,
+  },
+  errorBox: {
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.validation,
+    backgroundColor: '#FFF0EE',
+  },
+  retryBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.validation,
+  },
+  retryBtnText: {
+    color: palette.validation,
   },
 });
