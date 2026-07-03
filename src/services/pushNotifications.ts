@@ -220,6 +220,7 @@ function buildTokenPayload(
     appVersion: Application.nativeApplicationVersion ?? undefined,
     appBuild: Application.nativeBuildVersion ?? undefined,
     appBundle: getAppBundle(),
+    targetApp: 'driver',
   };
 }
 

@@ -7,6 +7,9 @@
       "distribution": "internal",
       "developmentClient": false,
       "environment": "preview",
+      "env": {
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -14,6 +17,9 @@
     "production": {
       "autoIncrement": true,
       "environment": "production",
+      "env": {
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+      },
       "android": {
         "buildType": "app-bundle"
       }

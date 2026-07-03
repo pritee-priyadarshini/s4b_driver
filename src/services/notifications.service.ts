@@ -3,6 +3,7 @@ import api from './api';
 export type PushPlatform = 'ios' | 'android';
 export type PushTokenType = 'fcm' | 'expo' | 'apns';
 export type PushTokenMode = 'prod' | 'dev';
+export type PushTargetApp = 'business' | 'driver';
 
 export type RegisterPushTokenPayload = {
   token: string;
@@ -12,6 +13,7 @@ export type RegisterPushTokenPayload = {
   appVersion?: string;
   appBuild?: string;
   appBundle?: string;
+  targetApp?: PushTargetApp;
 };
 
 export const notificationsService = {
@@ -23,5 +25,6 @@ export const notificationsService = {
   unregisterToken: (token: string) =>
     api.delete('/notifications/token', { data: { token } } as any),
 
-  unregisterAllTokens: () => api.delete('/notifications/tokens/all'),
+  unregisterAllTokens: (targetApp: PushTargetApp = 'driver') =>
+    api.delete('/notifications/tokens/all', { params: { targetApp } }),
 };

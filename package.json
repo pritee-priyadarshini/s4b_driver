@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eas:firebase-secret": "eas env:create preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --force && eas env:create production --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --force"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

@@ -24,9 +24,12 @@ const iosGoogleServicesFile = resolveGoogleServicesFile(
 
 function shouldIncludeFirebasePlugins() {
   const platform = process.env.EAS_BUILD_PLATFORM;
+
+  // Android-only for now — iOS push not configured yet.
+  if (platform === 'ios') return false;
   if (platform === 'android') return Boolean(androidGoogleServicesFile);
-  if (platform === 'ios') return Boolean(iosGoogleServicesFile);
-  return Boolean(androidGoogleServicesFile || iosGoogleServicesFile);
+
+  return Boolean(androidGoogleServicesFile);
 }
 
 const includeFirebase = shouldIncludeFirebasePlugins();
@@ -36,9 +39,13 @@ if (
   process.env.EAS_BUILD_PLATFORM === 'android' &&
   !androidGoogleServicesFile
 ) {
-  console.warn(
-    '[app.config] google-services.json not found — Firebase push is disabled for this build. ' +
-      'Add google-services.json to the project root or set GOOGLE_SERVICES_JSON (file) in EAS env.',
+  throw new Error(
+    '[app.config] Android EAS build requires google-services.json via a private EAS file secret.\n' +
+      'Run once (from project root, with your local file present):\n' +
+      '  npm run eas:firebase-secret\n' +
+      'Or manually:\n' +
+      '  eas env:create preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret\n' +
+      '  eas env:create production --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret',
   );
 }
 
