@@ -31,6 +31,7 @@ import { AuthDriver } from '../types/auth';
 import {
   getDriverSiteId,
   statusToTripPhase,
+  withDriverDistance,
   type DashboardPickup,
   type DashboardPickupItem,
   type TripPhase,
@@ -98,17 +99,11 @@ function getCharityHub(driver: AuthDriver | null, pickup?: DashboardPickup | nul
   const site = driver?.profile.sites[0];
   const org = driver?.profile.organisation;
 
-  console.log('[CharityHub] site lat/lng:', site?.latitude, site?.longitude);
-  console.log('[CharityHub] pickup charity lat/lng:', pickup?.charityLatitude, pickup?.charityLongitude);
-  console.log('[CharityHub] site address:', site?.address);
-  console.log('[CharityHub] pickup charity address:', pickup?.charityAddress);
-  console.log('[CharityHub] siteAccess address:', driver?.siteAccess?.address);
-
   return {
     name: pickup?.charityName ?? site?.name ?? org?.name ?? 'Your charity',
     address: pickup?.charityAddress ?? driver?.siteAccess?.address ?? site?.address ?? org?.address ?? '',
-    latitude: site?.latitude ?? pickup?.charityLatitude ?? undefined,
-    longitude: site?.longitude ?? pickup?.charityLongitude ?? undefined,
+    latitude: pickup?.charityLatitude ?? site?.latitude ?? undefined,
+    longitude: pickup?.charityLongitude ?? site?.longitude ?? undefined,
   };
 }
 
@@ -216,31 +211,33 @@ export function DashboardScreen() {
   const [activeTrip, setActiveTrip] = useState<DashboardPickup | null>(null);
   const baseCharityHub = useMemo(() => getCharityHub(driver, activeTrip), [driver, activeTrip]);
   const [geocodedCoords, setGeocodedCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [geocodeFailed, setGeocodeFailed] = useState(false);
 
   useEffect(() => {
     if (baseCharityHub.latitude != null && baseCharityHub.longitude != null) {
       setGeocodedCoords(null);
+      setGeocodeFailed(false);
       return;
     }
     const addr = baseCharityHub.address;
     if (!addr) {
-      console.log('[CharityHub] No address to geocode');
+      setGeocodeFailed(true);
       return;
     }
     let cancelled = false;
-    console.log('[CharityHub] Geocoding address:', addr);
+    setGeocodeFailed(false);
     Location.geocodeAsync(addr)
       .then((results) => {
         if (cancelled) return;
         if (results.length > 0) {
-          console.log('[CharityHub] Geocoded:', results[0].latitude, results[0].longitude);
           setGeocodedCoords({ latitude: results[0].latitude, longitude: results[0].longitude });
+          setGeocodeFailed(false);
         } else {
-          console.warn('[CharityHub] Geocoding returned no results for:', addr);
+          setGeocodeFailed(true);
         }
       })
-      .catch((err) => {
-        if (!cancelled) console.warn('[CharityHub] Geocoding failed:', err);
+      .catch(() => {
+        if (!cancelled) setGeocodeFailed(true);
       });
     return () => { cancelled = true; };
   }, [baseCharityHub.latitude, baseCharityHub.longitude, baseCharityHub.address]);
@@ -261,11 +258,11 @@ export function DashboardScreen() {
   const loadPickups = useCallback(async () => {
     if (!driver) return;
     try {
-      await fetchCurrentPickups(driver, driverLocation);
+      await fetchCurrentPickups(driver, useDriverShiftStore.getState().driverLocation);
     } catch {
       // Errors are stored in pickup store; avoid noisy alerts on background refresh.
     }
-  }, [driver, driverLocation, fetchCurrentPickups]);
+  }, [driver, fetchCurrentPickups]);
 
   useFocusEffect(
     useCallback(() => {
@@ -323,12 +320,28 @@ export function DashboardScreen() {
 
   const sorted = useMemo(
     () =>
-      [...pickups].sort((a, b) => {
+      [...pickups.map((p) => withDriverDistance(p, driverLocation))].sort((a, b) => {
         const order: TripPhase[] = ['delivering', 'to_charity', 'to_pickup', 'assigned'];
         return order.indexOf(a.phase) - order.indexOf(b.phase);
       }),
-    [pickups],
+    [pickups, driverLocation],
   );
+
+  useEffect(() => {
+    setActiveTrip((prev) => {
+      if (!prev) return prev;
+      const fromStore = pickups.find((p) => p.id === prev.id);
+      if (!fromStore) return prev;
+      if (
+        fromStore.phase === prev.phase &&
+        fromStore.backendStatus === prev.backendStatus &&
+        fromStore.title === prev.title
+      ) {
+        return prev;
+      }
+      return fromStore;
+    });
+  }, [pickups]);
 
   const updatePickup = (id: string, patch: Partial<DashboardPickup>) => {
     const pickupId = Number(id);
@@ -408,11 +421,8 @@ export function DashboardScreen() {
     const restaurant = restaurantCoord(activeTrip);
     const driver = driverLocation;
 
-    console.log('[TripMap] phase:', activeTrip.phase, 'charityHub coords:', charityHub.latitude, charityHub.longitude);
-
     if (activeTrip.phase === 'to_charity' || activeTrip.phase === 'delivering') {
       if (charityHub.latitude == null || charityHub.longitude == null) {
-        console.warn('[TripMap] Charity coordinates not available yet — waiting for geocode');
         return null;
       }
       const charity = { latitude: charityHub.latitude, longitude: charityHub.longitude };
@@ -756,9 +766,37 @@ export function DashboardScreen() {
 
       <Modal visible={tripVisible && !!activeTrip} animationType="slide" onRequestClose={() => setTripVisible(false)}>
         {activeTrip && !tripMapConfig ? (
-          <View style={[styles.tripRoot, { justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator size="large" color={ACCENT} />
-            <AppText variant="body" style={{ marginTop: hp(2), color: palette.grey }}>Loading charity location…</AppText>
+          <View style={[styles.tripRoot, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: wp(6) }]}>
+            {geocodeFailed ? (
+              <>
+                <Ionicons name="location-outline" size={normalize(40)} color={palette.stone} />
+                <AppText variant="bodyBold" style={{ marginTop: hp(2), textAlign: 'center' }}>
+                  Could not load charity location
+                </AppText>
+                <AppText variant="bodySmall" color={palette.stone} style={{ marginTop: hp(1), textAlign: 'center' }}>
+                  {charityHub.address || 'No charity address available.'}
+                </AppText>
+                {charityHub.address ? (
+                  <Pressable
+                    style={[styles.tripNavRow, { marginTop: hp(2), width: '100%' }]}
+                    onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(charityHub.address)}`)}
+                  >
+                    <View style={styles.tripNavIcon}>
+                      <Ionicons name="navigate" size={normalize(20)} color={ACCENT} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <AppText variant="bodyBold" style={styles.tripNavTitle}>Open in Maps</AppText>
+                      <AppText variant="bodySmall" color={palette.stone}>Search by address</AppText>
+                    </View>
+                  </Pressable>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <ActivityIndicator size="large" color={ACCENT} />
+                <AppText variant="body" style={{ marginTop: hp(2), color: palette.stone }}>Loading charity location…</AppText>
+              </>
+            )}
             <Pressable style={{ marginTop: hp(3) }} onPress={() => setTripVisible(false)}>
               <AppText variant="bodyBold" style={{ color: ACCENT }}>Go back</AppText>
             </Pressable>
@@ -935,8 +973,8 @@ export function DashboardScreen() {
               )}
 
               <SlideToAct
-                label={slideLabel(activeTrip.phase)}
-                disabled={!isLive}
+                label={slideBusy || actionPickupId != null ? 'Updating…' : slideLabel(activeTrip.phase)}
+                disabled={!isLive || slideBusy || actionPickupId != null}
                 onComplete={() => handleSlideComplete(activeTrip)}
               />
             </View>

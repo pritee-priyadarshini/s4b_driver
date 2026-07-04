@@ -14,7 +14,10 @@ import { AppText } from './AppText';
 import { usePickupAlertStore, type PickupAlertData } from '../store/pickupAlertStore';
 import { usePickupStore } from '../store/pickupStore';
 import { useNotificationPrefsStore } from '../store/notificationPrefsStore';
+import { useAuth } from '../store/AuthContext';
+import { useDriverShiftStore } from '../store/driverShiftStore';
 import { startPickupAlert, stopPickupAlert } from '../utils/pickupAlert';
+import { showAppError } from '../utils/appAlert';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
 
@@ -24,6 +27,7 @@ export function PickupAlertModal() {
   const visible = usePickupAlertStore((s) => s.visible);
   const alert = usePickupAlertStore((s) => s.alert);
   const dismiss = usePickupAlertStore((s) => s.dismiss);
+  const { driver } = useAuth();
   const acceptPickup = usePickupStore((s) => s.acceptPickup);
   const fetchCurrentPickups = usePickupStore((s) => s.fetchCurrentPickups);
   const insets = useSafeAreaInsets();
@@ -71,9 +75,13 @@ export function PickupAlertModal() {
     try {
       await acceptPickup(Number(alert.claimId), Number(alert.listingId));
       dismiss();
-      void fetchCurrentPickups(null);
-    } catch {
-      // pickupStore.error is set — dashboard will show it
+      void fetchCurrentPickups(driver, useDriverShiftStore.getState().driverLocation);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        usePickupStore.getState().error ??
+        'Failed to accept pickup. Please try again.';
+      showAppError('Accept pickup failed', message);
     } finally {
       acceptingRef.current = false;
     }

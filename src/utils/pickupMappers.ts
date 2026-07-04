@@ -95,8 +95,22 @@ export function statusToTripPhase(status: DriverPickupStatus): TripPhase {
 
 export function tripPhaseToStatus(phase: TripPhase): DriverPickupStatus {
   if (phase === 'to_pickup') return 'EN_ROUTE';
-  if (phase === 'to_charity') return 'ARRIVED';
+  if (phase === 'to_charity' || phase === 'delivering') return 'ARRIVED';
   return 'ACCEPTED';
+}
+
+export function withDriverDistance(
+  pickup: DashboardPickup,
+  driverLocation?: { latitude: number; longitude: number } | null,
+): DashboardPickup {
+  if (!driverLocation) return pickup;
+  const distance = distanceLabel(
+    driverLocation.latitude,
+    driverLocation.longitude,
+    pickup.latitude,
+    pickup.longitude,
+  );
+  return distance === pickup.distance ? pickup : { ...pickup, distance };
 }
 
 function distanceLabel(

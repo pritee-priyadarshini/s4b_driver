@@ -43,13 +43,20 @@ export const usePickupStore = create<PickupState>((set, get) => ({
   fetchCurrentPickups: async (driver, driverLocation) => {
     set({ loadingCurrent: true, error: null });
     try {
+      const existing = get().currentPickups;
       const res = await driverService.getPickups('current');
       const raw = res.data ?? [];
       set({
         rawCurrent: raw,
-        currentPickups: raw.map((pickup) =>
-          mapApiPickupToDashboard(pickup, driverLocation),
-        ),
+        currentPickups: raw.map((pickup) => {
+          const mapped = mapApiPickupToDashboard(pickup, driverLocation);
+          const prev = existing.find((p) => p.pickupId === pickup.id);
+          // Backend has no DELIVERING status — preserve local UI phase across refresh.
+          if (prev?.phase === 'delivering' && pickup.status === 'ARRIVED') {
+            return { ...mapped, phase: 'delivering' };
+          }
+          return mapped;
+        }),
         loadingCurrent: false,
       });
     } catch (err: unknown) {
