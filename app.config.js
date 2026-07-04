@@ -68,9 +68,15 @@ const expoNotificationsPlugin = includeFirebase
       {
         icon: './assets/intro/notification_icon.png',
         color: '#9B8AFB',
+        sounds: ['./assets/sounds/pickup_alert.wav'],
       },
     ]
-  : ['expo-notifications'];
+  : [
+      'expo-notifications',
+      {
+        sounds: ['./assets/sounds/pickup_alert.wav'],
+      },
+    ];
 
 export default {
   expo: {
@@ -133,7 +139,6 @@ export default {
       'expo-secure-store',
       '@react-native-community/datetimepicker',
       'expo-font',
-      'expo-av',
       expoNotificationsPlugin,
       ...firebasePlugins,
       [

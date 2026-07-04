@@ -12,23 +12,22 @@ const FIREBASE_ENABLED = Constants.expoConfig?.extra?.firebaseEnabled === true;
 if (!IS_EXPO_GO) {
   const Notifications = require('expo-notifications');
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async (notification) => {
+      const data = notification.request.content.data ?? {};
+      const isAlarmSound = data._alarmSound === '1';
+
+      return {
+        shouldShowBanner: !isAlarmSound,
+        shouldShowList: !isAlarmSound,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      };
+    },
   });
 
   if (Platform.OS === 'android') {
-    Notifications.setNotificationChannelAsync('pickup_alerts', {
-      name: 'Pickup Alerts',
-      description: 'Loud alerts for new pickup requests',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 800, 400, 800, 400, 800, 400, 800, 400, 800],
-      enableVibrate: true,
-      sound: 'default',
-    }).catch(() => {});
+    const { ensurePickupAlertChannel } = require('./src/utils/pickupAlert');
+    void ensurePickupAlertChannel();
   }
 
   if (FIREBASE_ENABLED) {

@@ -4,7 +4,7 @@ import * as Application from 'expo-application';
 
 import { showAppSettingsPrompt } from '../utils/appAlert';
 import { extractApiMessage } from '../utils/apiError';
-import { isPickupAlertType } from '../utils/pickupAlert';
+import { ensurePickupAlertChannel, isPickupAlertType } from '../utils/pickupAlert';
 
 import {
   notificationsService,
@@ -127,21 +127,12 @@ function getNotificationsModule() {
 async function setupAndroidNotificationChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   const Notifications = getNotificationsModule();
-  await Promise.all([
-    Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-    }),
-    Notifications.setNotificationChannelAsync('pickup_alerts', {
-      name: 'Pickup Alerts',
-      description: 'Loud alerts for new pickup requests',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 800, 400, 800, 400, 800, 400, 800, 400, 800],
-      enableVibrate: true,
-      sound: 'default',
-    }),
-  ]);
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+  });
+  await ensurePickupAlertChannel();
   pushLog('Android notification channels ready (default + pickup_alerts)');
 }
 
@@ -473,27 +464,22 @@ export function setupForegroundNotificationHandler(): void {
     });
 
     const isPickup = isPickupAlertType(data.type);
-    const channelId = isPickup ? 'pickup_alerts' : 'default';
 
-    let soundEnabled = true;
-    if (isPickup) {
-      try {
-        const { useNotificationPrefsStore } = require('../store/notificationPrefsStore');
-        soundEnabled = useNotificationPrefsStore.getState().alertSoundEnabled;
-      } catch {}
-    }
-
-    if (remoteMessage.notification?.title || remoteMessage.notification?.body) {
+    if (!isPickup && (remoteMessage.notification?.title || remoteMessage.notification?.body)) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: remoteMessage.notification.title ?? '',
-          body: remoteMessage.notification.body ?? '',
+          title: remoteMessage.notification?.title ?? '',
+          body: remoteMessage.notification?.body ?? '',
           data: { ...data, _localNotif: '1' },
-          sound: soundEnabled,
+          sound: 'default',
         },
-        trigger: Platform.OS === 'android' ? { channelId } : null,
+        trigger: Platform.OS === 'android' ? { channelId: 'default' } : null,
       });
-      pushLog('Foreground banner scheduled via expo-notifications', { channelId, soundEnabled });
+      pushLog('Foreground banner scheduled via expo-notifications', { channelId: 'default' });
+    }
+
+    if (isPickup) {
+      pushLog('Pickup alert — modal alarm handles sound/vibration in foreground');
     }
 
     if (isPickup && data.claimId && data.listingId) {

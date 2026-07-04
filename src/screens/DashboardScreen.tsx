@@ -521,13 +521,18 @@ export function DashboardScreen() {
       </View>
       <View style={[styles.locationPill, headerLocation.pillStyle]}>
         {liveStatus === 'connecting' ? (
-          <ActivityIndicator size="small" color={palette.white} />
+          <>
+            <Skeleton width={normalize(14)} height={normalize(14)} borderRadius={normalize(7)} style={styles.locationSkeletonIcon} />
+            <Skeleton width={wp(42)} height={normalize(14)} borderRadius={normalize(7)} style={styles.locationSkeletonText} />
+          </>
         ) : (
-          <Ionicons name={headerLocation.icon} size={normalize(14)} color={headerLocation.iconColor} />
+          <>
+            <Ionicons name={headerLocation.icon} size={normalize(14)} color={headerLocation.iconColor} />
+            <AppText variant="caption" style={styles.locationPillText} numberOfLines={2}>
+              {headerLocation.text}
+            </AppText>
+          </>
         )}
-        <AppText variant="caption" style={styles.locationPillText} numberOfLines={2}>
-          {headerLocation.text}
-        </AppText>
       </View>
     </HeroHeader>
   );
@@ -1080,6 +1085,12 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textTransform: 'none',
     flex: 1,
+  },
+  locationSkeletonIcon: {
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  locationSkeletonText: {
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   logoCircle: {
     width: normalize(52),
