@@ -16,7 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import * as Location from 'expo-location';
 import { AppText } from '../components/AppText';
 import { AppBottomSheet } from '../components/AppBottomSheet';
 import { Screen } from '../components/Screen';
@@ -39,6 +38,7 @@ import {
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
 import { showAppError } from '../utils/appAlert';
+import { geocodeAddress } from '../utils/geocodeAddress';
 
 const ACCENT = palette.kale;
 const ACCENT_SOFT = '#D8EBDF';
@@ -212,25 +212,29 @@ export function DashboardScreen() {
   const baseCharityHub = useMemo(() => getCharityHub(driver, activeTrip), [driver, activeTrip]);
   const [geocodedCoords, setGeocodedCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [geocodeFailed, setGeocodeFailed] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     if (baseCharityHub.latitude != null && baseCharityHub.longitude != null) {
       setGeocodedCoords(null);
       setGeocodeFailed(false);
+      setGeocoding(false);
       return;
     }
     const addr = baseCharityHub.address;
     if (!addr) {
       setGeocodeFailed(true);
+      setGeocoding(false);
       return;
     }
     let cancelled = false;
     setGeocodeFailed(false);
-    Location.geocodeAsync(addr)
-      .then((results) => {
+    setGeocoding(true);
+    void geocodeAddress(addr)
+      .then((point) => {
         if (cancelled) return;
-        if (results.length > 0) {
-          setGeocodedCoords({ latitude: results[0].latitude, longitude: results[0].longitude });
+        if (point) {
+          setGeocodedCoords(point);
           setGeocodeFailed(false);
         } else {
           setGeocodeFailed(true);
@@ -238,6 +242,9 @@ export function DashboardScreen() {
       })
       .catch(() => {
         if (!cancelled) setGeocodeFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setGeocoding(false);
       });
     return () => { cancelled = true; };
   }, [baseCharityHub.latitude, baseCharityHub.longitude, baseCharityHub.address]);
@@ -776,10 +783,13 @@ export function DashboardScreen() {
               <>
                 <Ionicons name="location-outline" size={normalize(40)} color={palette.stone} />
                 <AppText variant="bodyBold" style={{ marginTop: hp(2), textAlign: 'center' }}>
-                  Could not load charity location
+                  Map unavailable for this address
                 </AppText>
                 <AppText variant="bodySmall" color={palette.stone} style={{ marginTop: hp(1), textAlign: 'center' }}>
-                  {charityHub.address || 'No charity address available.'}
+                  {charityHub.address}
+                </AppText>
+                <AppText variant="bodySmall" color={palette.stone} style={{ marginTop: hp(1), textAlign: 'center' }}>
+                  Use Open in Maps below to navigate to the charity.
                 </AppText>
                 {charityHub.address ? (
                   <Pressable
@@ -796,10 +806,15 @@ export function DashboardScreen() {
                   </Pressable>
                 ) : null}
               </>
-            ) : (
+            ) : geocoding ? (
               <>
                 <ActivityIndicator size="large" color={ACCENT} />
                 <AppText variant="body" style={{ marginTop: hp(2), color: palette.stone }}>Loading charity location…</AppText>
+              </>
+            ) : (
+              <>
+                <ActivityIndicator size="large" color={ACCENT} />
+                <AppText variant="body" style={{ marginTop: hp(2), color: palette.stone }}>Preparing map…</AppText>
               </>
             )}
             <Pressable style={{ marginTop: hp(3) }} onPress={() => setTripVisible(false)}>
