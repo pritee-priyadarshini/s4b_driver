@@ -46,17 +46,23 @@ export const driverService = {
     api.patch<ApiDriverPickup>(`/drivers/pickups/${pickupId}/status`, { status }),
 
   completePickup: (pickupId: number, payload: CompletePickupPayload = {}) => {
-    const form = new FormData();
+    const hasAttachment = !!payload.photoUri;
 
+    if (!hasAttachment) {
+      const body: Record<string, unknown> = {};
+      if (payload.notes) body.notes = payload.notes;
+      if (payload.rating != null) body.rating = payload.rating;
+      return api.post<ApiDriverPickup>(`/drivers/pickups/${pickupId}/complete`, body);
+    }
+
+    const form = new FormData();
     if (payload.notes) form.append('notes', payload.notes);
     if (payload.rating != null) form.append('rating', String(payload.rating));
 
-    if (payload.photoUri) {
-      const uri = payload.photoUri;
-      const name = uri.split('/').pop() ?? 'pickup-photo.jpg';
-      const type = name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      form.append('photo', { uri, name, type } as unknown as Blob);
-    }
+    const uri = payload.photoUri!;
+    const name = uri.split('/').pop() ?? 'pickup-photo.jpg';
+    const type = name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    form.append('photo', { uri, name, type } as unknown as Blob);
 
     return api.post<ApiDriverPickup>(`/drivers/pickups/${pickupId}/complete`, form);
   },

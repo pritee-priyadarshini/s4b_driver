@@ -35,8 +35,11 @@ export function PickupAlertModal() {
   useEffect(() => {
     if (!visible || !alert) return;
 
-    const vibration = useNotificationPrefsStore.getState().alertVibrationEnabled;
-    startPickupAlert({ vibration });
+    const prefs = useNotificationPrefsStore.getState();
+    startPickupAlert({
+      vibration: prefs.alertVibrationEnabled,
+      sound: prefs.alertSoundEnabled,
+    });
 
     slideAnim.setValue(0);
     Animated.spring(slideAnim, {
@@ -56,14 +59,14 @@ export function PickupAlertModal() {
 
     return () => {
       pulse.stop();
-      stopPickupAlert();
+      void stopPickupAlert();
     };
   }, [visible, alert, pulseAnim, slideAnim]);
 
   const handleAccept = async () => {
     if (!alert || acceptingRef.current) return;
     acceptingRef.current = true;
-    stopPickupAlert();
+    await stopPickupAlert();
 
     try {
       await acceptPickup(Number(alert.claimId), Number(alert.listingId));
@@ -77,7 +80,7 @@ export function PickupAlertModal() {
   };
 
   const handleDecline = () => {
-    stopPickupAlert();
+    void stopPickupAlert();
     dismiss();
   };
 

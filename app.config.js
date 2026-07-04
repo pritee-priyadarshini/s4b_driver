@@ -133,6 +133,7 @@ export default {
       'expo-secure-store',
       '@react-native-community/datetimepicker',
       'expo-font',
+      'expo-av',
       expoNotificationsPlugin,
       ...firebasePlugins,
       [

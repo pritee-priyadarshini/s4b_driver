@@ -37,6 +37,8 @@ export type ApiDriverPickup = {
       name: string;
       logoUrl?: string | null;
       address?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
     };
   };
   listing: {

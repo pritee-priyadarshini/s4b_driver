@@ -2,7 +2,7 @@ import type { ApiDriverPickup, DriverPickupStatus } from '../types/driver';
 import type { HistoryOrder, OrderStatus } from '../types/history';
 import type { AuthDriver } from '../types/auth';
 
-export type TripPhase = 'assigned' | 'to_pickup' | 'to_charity';
+export type TripPhase = 'assigned' | 'to_pickup' | 'to_charity' | 'delivering';
 
 export type DashboardPickupItem = {
   name: string;
@@ -26,6 +26,10 @@ export type DashboardPickup = {
   longitude: number;
   phase: TripPhase;
   backendStatus: DriverPickupStatus;
+  charityName?: string;
+  charityAddress?: string;
+  charityLatitude?: number | null;
+  charityLongitude?: number | null;
 };
 
 function formatDate(value?: string | null): string {
@@ -148,6 +152,10 @@ export function mapApiPickupToDashboard(
     longitude: lng,
     phase: statusToTripPhase(pickup.status),
     backendStatus: pickup.status,
+    charityName: pickup.claim.claimantOrg.name,
+    charityAddress: pickup.claim.claimantOrg.address ?? undefined,
+    charityLatitude: pickup.claim.claimantOrg.latitude,
+    charityLongitude: pickup.claim.claimantOrg.longitude,
   };
 }
 

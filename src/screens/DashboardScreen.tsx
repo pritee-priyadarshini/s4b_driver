@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { AppText } from '../components/AppText';
 import { AppBottomSheet } from '../components/AppBottomSheet';
 import { Screen } from '../components/Screen';
@@ -48,8 +49,8 @@ type Coord = { latitude: number; longitude: number };
 type CharityHub = {
   name: string;
   address: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
 };
 
 function restaurantCoord(pickup: DashboardPickup): Coord {
@@ -82,24 +83,32 @@ function itemQty(items: DashboardPickupItem[]) {
 function phaseLabel(phase: TripPhase) {
   if (phase === 'assigned') return 'New pickup';
   if (phase === 'to_pickup') return 'Heading to restaurant';
-  return 'Heading to charity';
+  if (phase === 'to_charity') return 'At restaurant';
+  return 'Delivering to charity';
 }
 
 function slideLabel(phase: TripPhase) {
   if (phase === 'assigned') return 'Slide to start trip';
   if (phase === 'to_pickup') return 'Slide to confirm pickup';
+  if (phase === 'to_charity') return 'Slide to go for delivery';
   return 'Slide to complete delivery';
 }
 
-function getCharityHub(driver: AuthDriver | null): CharityHub {
+function getCharityHub(driver: AuthDriver | null, pickup?: DashboardPickup | null): CharityHub {
   const site = driver?.profile.sites[0];
   const org = driver?.profile.organisation;
 
+  console.log('[CharityHub] site lat/lng:', site?.latitude, site?.longitude);
+  console.log('[CharityHub] pickup charity lat/lng:', pickup?.charityLatitude, pickup?.charityLongitude);
+  console.log('[CharityHub] site address:', site?.address);
+  console.log('[CharityHub] pickup charity address:', pickup?.charityAddress);
+  console.log('[CharityHub] siteAccess address:', driver?.siteAccess?.address);
+
   return {
-    name: site?.name ?? org?.name ?? 'Your charity',
-    address: driver?.siteAccess?.address ?? site?.address ?? org?.address ?? '',
-    latitude: site?.latitude ?? 12.9784,
-    longitude: site?.longitude ?? 77.6408,
+    name: pickup?.charityName ?? site?.name ?? org?.name ?? 'Your charity',
+    address: pickup?.charityAddress ?? driver?.siteAccess?.address ?? site?.address ?? org?.address ?? '',
+    latitude: site?.latitude ?? pickup?.charityLatitude ?? undefined,
+    longitude: site?.longitude ?? pickup?.charityLongitude ?? undefined,
   };
 }
 
@@ -185,7 +194,6 @@ export function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { driver } = useAuth();
 
-  const charityHub = useMemo(() => getCharityHub(driver), [driver]);
   const firstName = driver?.firstName || 'Driver';
   const siteId = useMemo(() => getDriverSiteId(driver), [driver]);
 
@@ -206,6 +214,43 @@ export function DashboardScreen() {
 
   const [foodModal, setFoodModal] = useState<DashboardPickup | null>(null);
   const [activeTrip, setActiveTrip] = useState<DashboardPickup | null>(null);
+  const baseCharityHub = useMemo(() => getCharityHub(driver, activeTrip), [driver, activeTrip]);
+  const [geocodedCoords, setGeocodedCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  useEffect(() => {
+    if (baseCharityHub.latitude != null && baseCharityHub.longitude != null) {
+      setGeocodedCoords(null);
+      return;
+    }
+    const addr = baseCharityHub.address;
+    if (!addr) {
+      console.log('[CharityHub] No address to geocode');
+      return;
+    }
+    let cancelled = false;
+    console.log('[CharityHub] Geocoding address:', addr);
+    Location.geocodeAsync(addr)
+      .then((results) => {
+        if (cancelled) return;
+        if (results.length > 0) {
+          console.log('[CharityHub] Geocoded:', results[0].latitude, results[0].longitude);
+          setGeocodedCoords({ latitude: results[0].latitude, longitude: results[0].longitude });
+        } else {
+          console.warn('[CharityHub] Geocoding returned no results for:', addr);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) console.warn('[CharityHub] Geocoding failed:', err);
+      });
+    return () => { cancelled = true; };
+  }, [baseCharityHub.latitude, baseCharityHub.longitude, baseCharityHub.address]);
+
+  const charityHub: CharityHub = useMemo(() => ({
+    ...baseCharityHub,
+    latitude: baseCharityHub.latitude ?? geocodedCoords?.latitude,
+    longitude: baseCharityHub.longitude ?? geocodedCoords?.longitude,
+  }), [baseCharityHub, geocodedCoords]);
+
   const [tripVisible, setTripVisible] = useState(false);
   const [slideBusy, setSlideBusy] = useState(false);
 
@@ -279,7 +324,7 @@ export function DashboardScreen() {
   const sorted = useMemo(
     () =>
       [...pickups].sort((a, b) => {
-        const order: TripPhase[] = ['to_charity', 'to_pickup', 'assigned'];
+        const order: TripPhase[] = ['delivering', 'to_charity', 'to_pickup', 'assigned'];
         return order.indexOf(a.phase) - order.indexOf(b.phase);
       }),
     [pickups],
@@ -332,6 +377,16 @@ export function DashboardScreen() {
         return;
       }
 
+      if (pickup.phase === 'to_charity') {
+        const next: DashboardPickup = {
+          ...pickup,
+          phase: 'delivering',
+        };
+        updatePickup(pickup.id, next);
+        openTripMap(next);
+        return;
+      }
+
       await completePickup(pickup.pickupId);
       setTripVisible(false);
       setActiveTrip(null);
@@ -351,20 +406,27 @@ export function DashboardScreen() {
     if (!activeTrip) return null;
 
     const restaurant = restaurantCoord(activeTrip);
-    const charity = { latitude: charityHub.latitude, longitude: charityHub.longitude };
     const driver = driverLocation;
 
-    if (activeTrip.phase === 'to_charity') {
-      const markers = driver ? [restaurant, charity, driver] : [restaurant, charity];
+    console.log('[TripMap] phase:', activeTrip.phase, 'charityHub coords:', charityHub.latitude, charityHub.longitude);
+
+    if (activeTrip.phase === 'to_charity' || activeTrip.phase === 'delivering') {
+      if (charityHub.latitude == null || charityHub.longitude == null) {
+        console.warn('[TripMap] Charity coordinates not available yet — waiting for geocode');
+        return null;
+      }
+      const charity = { latitude: charityHub.latitude, longitude: charityHub.longitude };
+      const origin = driver ?? restaurant;
+      const markers = driver ? [driver, charity] : [restaurant, charity];
       return {
         destination: charity,
-        routeOrigin: restaurant,
+        routeOrigin: origin,
         destinationLabel: charityHub.name,
         destinationAddress: charityHub.address,
         destinationType: 'charity' as const,
         markers,
-        polyline: [restaurant, charity],
-        center: restaurant,
+        polyline: [origin, charity],
+        center: origin,
       };
     }
 
@@ -692,8 +754,16 @@ export function DashboardScreen() {
         </View>
       </AppBottomSheet>
 
-      <Modal visible={tripVisible && !!activeTrip && !!tripMapConfig} animationType="slide" onRequestClose={() => setTripVisible(false)}>
-        {activeTrip && tripMapConfig ? (
+      <Modal visible={tripVisible && !!activeTrip} animationType="slide" onRequestClose={() => setTripVisible(false)}>
+        {activeTrip && !tripMapConfig ? (
+          <View style={[styles.tripRoot, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ActivityIndicator size="large" color={ACCENT} />
+            <AppText variant="body" style={{ marginTop: hp(2), color: palette.grey }}>Loading charity location…</AppText>
+            <Pressable style={{ marginTop: hp(3) }} onPress={() => setTripVisible(false)}>
+              <AppText variant="bodyBold" style={{ color: ACCENT }}>Go back</AppText>
+            </Pressable>
+          </View>
+        ) : activeTrip && tripMapConfig ? (
           <View style={styles.tripRoot}>
             <View style={styles.tripMapSection}>
               <OsmMapView
@@ -752,14 +822,14 @@ export function DashboardScreen() {
                   style={[
                     styles.tripStep,
                     activeTrip.phase === 'to_pickup' && styles.tripStepActive,
-                    activeTrip.phase === 'to_charity' && styles.tripStepDone,
+                    (activeTrip.phase === 'to_charity' || activeTrip.phase === 'delivering') && styles.tripStepDone,
                   ]}
                 >
                   <Ionicons
                     name="restaurant-outline"
                     size={normalize(16)}
                     color={
-                      activeTrip.phase === 'to_charity'
+                      activeTrip.phase === 'to_charity' || activeTrip.phase === 'delivering'
                         ? palette.white
                         : activeTrip.phase === 'to_pickup'
                           ? ACCENT
@@ -771,7 +841,7 @@ export function DashboardScreen() {
                     style={[
                       styles.tripStepLabel,
                       activeTrip.phase === 'to_pickup' && styles.tripStepLabelActive,
-                      activeTrip.phase === 'to_charity' && styles.tripStepLabelDone,
+                      (activeTrip.phase === 'to_charity' || activeTrip.phase === 'delivering') && styles.tripStepLabelDone,
                     ]}
                   >
                     Pickup
@@ -780,25 +850,33 @@ export function DashboardScreen() {
                 <View
                   style={[
                     styles.tripStepLine,
-                    activeTrip.phase === 'to_charity' && styles.tripStepLineDone,
+                    (activeTrip.phase === 'to_charity' || activeTrip.phase === 'delivering') && styles.tripStepLineDone,
                   ]}
                 />
                 <View
                   style={[
                     styles.tripStep,
-                    activeTrip.phase === 'to_charity' && styles.tripStepDone,
+                    activeTrip.phase === 'to_charity' && styles.tripStepActive,
+                    activeTrip.phase === 'delivering' && styles.tripStepDone,
                   ]}
                 >
                   <Ionicons
                     name="home-outline"
                     size={normalize(16)}
-                    color={activeTrip.phase === 'to_charity' ? palette.white : palette.stone}
+                    color={
+                      activeTrip.phase === 'delivering'
+                        ? palette.white
+                        : activeTrip.phase === 'to_charity'
+                          ? ACCENT
+                          : palette.stone
+                    }
                   />
                   <AppText
                     variant="caption"
                     style={[
                       styles.tripStepLabel,
-                      activeTrip.phase === 'to_charity' && styles.tripStepLabelDone,
+                      activeTrip.phase === 'to_charity' && styles.tripStepLabelActive,
+                      activeTrip.phase === 'delivering' && styles.tripStepLabelDone,
                     ]}
                   >
                     Charity
