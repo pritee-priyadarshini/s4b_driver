@@ -13,10 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from './AppText';
 import { usePickupAlertStore, type PickupAlertData } from '../store/pickupAlertStore';
 import { usePickupStore } from '../store/pickupStore';
-import { useNotificationPrefsStore } from '../store/notificationPrefsStore';
 import { useAuth } from '../store/AuthContext';
 import { useDriverShiftStore } from '../store/driverShiftStore';
-import { startPickupAlert, stopPickupAlert } from '../utils/pickupAlert';
+import { stopPickupAlert } from '../utils/pickupAlert';
 import { showAppError } from '../utils/appAlert';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
@@ -38,12 +37,6 @@ export function PickupAlertModal() {
 
   useEffect(() => {
     if (!visible || !alert) return;
-
-    const prefs = useNotificationPrefsStore.getState();
-    startPickupAlert({
-      vibration: prefs.alertVibrationEnabled,
-      sound: prefs.alertSoundEnabled,
-    });
 
     slideAnim.setValue(0);
     Animated.spring(slideAnim, {

@@ -4,7 +4,12 @@ import * as Application from 'expo-application';
 
 import { showAppSettingsPrompt } from '../utils/appAlert';
 import { extractApiMessage } from '../utils/apiError';
-import { ensurePickupAlertChannel, isPickupAlertType } from '../utils/pickupAlert';
+import {
+  deliverPickupNotificationAlert,
+  ensurePickupAlertChannel,
+  isPickupAlertActive,
+  isPickupAlertType,
+} from '../utils/pickupAlert';
 
 import {
   notificationsService,
@@ -86,6 +91,58 @@ export function formatPushError(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+export type PickupNotificationSource = 'foreground' | 'background' | 'tap';
+
+export async function processIncomingPickupNotification(params: {
+  data: Record<string, string>;
+  notification?: { title?: string; body?: string } | null;
+  source: PickupNotificationSource;
+}): Promise<void> {
+  const { data, notification, source } = params;
+  if (!isPickupAlertType(data.type) || !data.claimId || !data.listingId) return;
+
+  const title = notification?.title ?? data.title ?? 'New pickup available!';
+  const body = notification?.body ?? data.body ?? 'A pickup needs your attention';
+
+  let soundEnabled = true;
+  let vibrationEnabled = true;
+  try {
+    const { useNotificationPrefsStore } = require('../store/notificationPrefsStore');
+    const prefs = useNotificationPrefsStore.getState();
+    soundEnabled = prefs.alertSoundEnabled;
+    vibrationEnabled = prefs.alertVibrationEnabled;
+  } catch {
+    // prefs store unavailable — use defaults
+  }
+
+  const isNewAlert = source !== 'tap' || !isPickupAlertActive();
+
+  if (isNewAlert) {
+    // Native notification sound — works open, background, or screen off (when JS is running).
+    if (soundEnabled) {
+      await deliverPickupNotificationAlert({ title, body, data });
+    }
+
+    // Extra alarm bursts + vibration so driver feels it in pocket.
+    const { startPickupAlert } = require('../utils/pickupAlert');
+    startPickupAlert({ vibration: vibrationEnabled, sound: soundEnabled });
+    pushLog('Pickup alert delivered on receive', { source, claimId: data.claimId });
+  }
+
+  const { usePickupAlertStore } = require('../store/pickupAlertStore');
+  usePickupAlertStore.getState().show({
+    claimId: data.claimId,
+    listingId: data.listingId,
+    title,
+    body,
+    type: data.type,
+    claimMode: data.claimMode,
+    remainingQtyKg: data.remainingQtyKg,
+  });
+
+  pushLog('Pickup alert processed', { source, claimId: data.claimId });
 }
 
 export function logPushEnvironmentOnce(): void {
@@ -478,22 +535,12 @@ export function setupForegroundNotificationHandler(): void {
       pushLog('Foreground banner scheduled via expo-notifications', { channelId: 'default' });
     }
 
-    if (isPickup) {
-      pushLog('Pickup alert — modal alarm handles sound/vibration in foreground');
-    }
-
     if (isPickup && data.claimId && data.listingId) {
-      const { usePickupAlertStore } = require('../store/pickupAlertStore');
-      usePickupAlertStore.getState().show({
-        claimId: data.claimId,
-        listingId: data.listingId,
-        title: remoteMessage.notification?.title ?? 'New pickup available!',
-        body: remoteMessage.notification?.body ?? '',
-        type: data.type,
-        claimMode: data.claimMode,
-        remainingQtyKg: data.remainingQtyKg,
+      await processIncomingPickupNotification({
+        data,
+        notification: remoteMessage.notification,
+        source: 'foreground',
       });
-      pushLog('Pickup alert modal triggered', { type: data.type, claimId: data.claimId });
     }
   });
 
@@ -543,8 +590,8 @@ export async function setupNotificationOpenedHandler(
 
   const localNotifSub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = (response.notification.request.content.data ?? {}) as Record<string, string>;
-    if (!data._localNotif) return;
-    pushLog('Foreground notification tapped', {
+    if (!data._localNotif && !data._pickupNotif) return;
+    pushLog('Local notification tapped', {
       identifier: response.notification.request.identifier,
       data,
     });

@@ -11,7 +11,7 @@ const FCM_META_DATA = [
   {
     name: 'com.google.firebase.messaging.default_notification_channel_id',
     replace: 'android:value',
-    attrs: { 'android:value': 'default' },
+    attrs: { 'android:value': 'pickup_alarm_v2' },
   },
   {
     name: 'com.google.firebase.messaging.default_notification_color',

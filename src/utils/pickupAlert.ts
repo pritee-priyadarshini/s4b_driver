@@ -17,6 +17,11 @@ let alarmStopTimer: ReturnType<typeof setTimeout> | null = null;
 let alarmBurstTimer: ReturnType<typeof setTimeout> | null = null;
 let alarmBurstCancelled = false;
 let alarmBurstIndex = 0;
+let pickupAlertActive = false;
+
+export function isPickupAlertActive(): boolean {
+  return pickupAlertActive;
+}
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -45,15 +50,57 @@ export async function ensurePickupAlertChannel(): Promise<void> {
   try {
     await Notifications.setNotificationChannelAsync(PICKUP_ALERT_CHANNEL, {
       name: 'Pickup Alarm',
-      description: 'Loud custom alarm for new pickup requests',
+      description: 'Loud alarm when a pickup is available — works with phone in pocket',
       importance: Notifications.AndroidImportance.MAX,
       sound: PICKUP_ALERT_SOUND,
-      enableVibrate: false,
+      vibrationPattern: VIBRATE_PATTERN,
+      enableVibrate: true,
       bypassDnd: true,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
   } catch (err) {
     console.warn('[PickupAlert] Could not create alarm channel', err);
+  }
+}
+
+/** Visible system notification with custom alarm sound — works in every app state when JS runs. */
+export async function deliverPickupNotificationAlert(params: {
+  title: string;
+  body: string;
+  data: Record<string, string>;
+}): Promise<void> {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
+
+  await ensurePickupAlertChannel();
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: params.title,
+        body: params.body,
+        sound: getNotificationSound(),
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        data: { ...params.data, _pickupNotif: '1' },
+      },
+      trigger: getImmediateTrigger(),
+    });
+  } catch (err) {
+    console.warn('[PickupAlert] Custom pickup notification failed, using default sound', err);
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: params.title,
+          body: params.body,
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          data: { ...params.data, _pickupNotif: '1' },
+        },
+        trigger: getImmediateTrigger(),
+      });
+    } catch (fallbackErr) {
+      console.warn('[PickupAlert] Could not deliver pickup notification', fallbackErr);
+    }
   }
 }
 
@@ -128,6 +175,7 @@ async function stopAlarmBursts(): Promise<void> {
 export function startPickupAlert(options: { vibration?: boolean; sound?: boolean } = {}): void {
   void stopPickupAlert();
 
+  pickupAlertActive = true;
   const { vibration = true, sound = true } = options;
 
   if (sound) {
@@ -151,6 +199,7 @@ export function startPickupAlert(options: { vibration?: boolean; sound?: boolean
 }
 
 export async function stopPickupAlert(): Promise<void> {
+  pickupAlertActive = false;
   Vibration.cancel();
   if (vibrationTimer) {
     clearTimeout(vibrationTimer);

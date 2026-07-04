@@ -14,10 +14,10 @@ import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import {
   setupNotificationOpenedHandler,
   teardownNotificationOpenedHandler,
+  processIncomingPickupNotification,
   type NotificationPayload,
 } from '../services/pushNotifications';
 import { PickupAlertModal } from '../components/PickupAlertModal';
-import { usePickupAlertStore } from '../store/pickupAlertStore';
 import { isPickupAlertType } from '../utils/pickupAlert';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,14 +39,10 @@ export function AppNavigator() {
 
     if (isPickupAlertType(data.type) && data.claimId && data.listingId) {
       navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
-      usePickupAlertStore.getState().show({
-        claimId: data.claimId,
-        listingId: data.listingId,
-        title: payload.notification?.title ?? 'New pickup available!',
-        body: payload.notification?.body ?? '',
-        type: data.type,
-        claimMode: data.claimMode,
-        remainingQtyKg: data.remainingQtyKg,
+      void processIncomingPickupNotification({
+        data: data as Record<string, string>,
+        notification: payload.notification,
+        source: 'tap',
       });
       return;
     }

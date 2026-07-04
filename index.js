@@ -14,11 +14,11 @@ if (!IS_EXPO_GO) {
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
       const data = notification.request.content.data ?? {};
-      const isAlarmSound = data._alarmSound === '1';
+      const isHiddenAlarmBurst = data._alarmSound === '1';
 
       return {
-        shouldShowBanner: !isAlarmSound,
-        shouldShowList: !isAlarmSound,
+        shouldShowBanner: !isHiddenAlarmBurst,
+        shouldShowList: !isHiddenAlarmBurst,
         shouldPlaySound: true,
         shouldSetBadge: false,
       };
@@ -41,7 +41,26 @@ if (!IS_EXPO_GO) {
     try {
       const { default: messaging } = require('@react-native-firebase/messaging');
       messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-        console.log('[Push] Background message received:', remoteMessage.messageId);
+        const data = remoteMessage.data ?? {};
+        console.log('[Push] Background message received:', remoteMessage.messageId, data.type);
+
+        try {
+          const { isPickupAlertType } = require('./src/utils/pickupAlert');
+          const { processIncomingPickupNotification } = require('./src/services/pushNotifications');
+          if (
+            isPickupAlertType(data.type) &&
+            data.claimId &&
+            data.listingId
+          ) {
+            await processIncomingPickupNotification({
+              data,
+              notification: remoteMessage.notification,
+              source: 'background',
+            });
+          }
+        } catch (error) {
+          console.warn('[Push] Background pickup handler failed', error);
+        }
       });
     } catch (error) {
       console.log('[Push] Firebase messaging not available', error);
