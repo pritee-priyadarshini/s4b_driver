@@ -24,9 +24,8 @@ import {
   getForgotPasswordErrorMessage,
   getForgotPasswordSuccessMessage,
   getUserFriendlyErrorMessage,
-  showSuccessAlert,
 } from '../utils/apiError';
-import { showAppSuccess } from '../utils/appAlert';
+import { showAppSuccess, showSuccessAlert } from '../utils/appAlert';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChangePassword'>;
 

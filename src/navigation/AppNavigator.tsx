@@ -16,6 +16,9 @@ import {
   teardownNotificationOpenedHandler,
   type NotificationPayload,
 } from '../services/pushNotifications';
+import { PickupAlertModal } from '../components/PickupAlertModal';
+import { usePickupAlertStore } from '../store/pickupAlertStore';
+import { isPickupAlertType } from '../utils/pickupAlert';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -33,6 +36,20 @@ export function AppNavigator() {
     if (!navigationRef.current?.isReady()) return;
 
     const data = payload.data ?? {};
+
+    if (isPickupAlertType(data.type) && data.claimId && data.listingId) {
+      navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
+      usePickupAlertStore.getState().show({
+        claimId: data.claimId,
+        listingId: data.listingId,
+        title: payload.notification?.title ?? 'New pickup available!',
+        body: payload.notification?.body ?? '',
+        type: data.type,
+        claimMode: data.claimMode,
+        remainingQtyKg: data.remainingQtyKg,
+      });
+      return;
+    }
 
     if (data.pickupId || data.type === 'driver_assigned') {
       navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
@@ -90,6 +107,7 @@ export function AppNavigator() {
           </>
         )}
       </Stack.Navigator>
+      {authenticated ? <PickupAlertModal /> : null}
     </NavigationContainer>
   );
 }

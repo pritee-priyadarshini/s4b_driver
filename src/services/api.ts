@@ -4,10 +4,12 @@ import * as SecureStore from 'expo-secure-store';
 type UnauthorizedHandler = () => void | Promise<void>;
 
 let unauthorizedHandler: UnauthorizedHandler | null = null;
+let handlingUnauthorized = false;
 
 /** Called from AuthContext so a 401 clears session and redirects to login. */
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   unauthorizedHandler = handler;
+  if (!handler) handlingUnauthorized = false;
 }
 
 const TOKEN_KEY = 'driverAccessToken';
@@ -68,12 +70,15 @@ api.interceptors.response.use(
     const url = config?.url ?? '';
     const isLoginRequest = url.includes('/auth/login');
 
-    if (error.response?.status === 401 && !isLoginRequest) {
+    if (error.response?.status === 401 && !isLoginRequest && !handlingUnauthorized) {
+      handlingUnauthorized = true;
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       try {
         await unauthorizedHandler?.();
       } catch {
         // session teardown failed — token is already cleared
+      } finally {
+        handlingUnauthorized = false;
       }
     }
 

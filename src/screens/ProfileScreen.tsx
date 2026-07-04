@@ -21,8 +21,7 @@ import { useSubmitLock } from '../hooks/useSubmitLock';
 import { profileService } from '../services/profileService';
 import { AuthDriver } from '../types/auth';
 import { Skeleton } from '../components/Skeleton';
-import { showAppConfirm, showAppError, showAppSuccess } from '../utils/appAlert';
-import { showErrorAlert } from '../utils/apiError';
+import { showAppConfirm, showAppError, showAppSuccess, showErrorAlert } from '../utils/appAlert';
 import { NotificationPermissionSettings } from '../components/NotificationPermissionSettings';
 import { hp, normalize } from '../utils/responsive';
 

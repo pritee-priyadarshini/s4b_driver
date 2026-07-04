@@ -89,3 +89,15 @@ export function showErrorFromUnknown(
 ) {
   showAppError(title, getUserFriendlyErrorMessage(error, fallback));
 }
+
+export function showSuccessAlert(message: string, title = 'Success', onOk?: () => void) {
+  showAppSuccess(message, title, onOk);
+}
+
+export function showErrorAlert(
+  error: unknown,
+  fallback: string,
+  title = 'Error',
+) {
+  showAppError(title, getUserFriendlyErrorMessage(error, fallback));
+}

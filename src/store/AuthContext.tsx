@@ -61,7 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearSession = useCallback(async () => {
     const notificationsStore = useNotificationsStore.getState();
     notificationsStore.teardownPushHandlers();
-    await notificationsStore.unregisterDeviceToken();
+    try {
+      await notificationsStore.unregisterDeviceToken();
+    } catch {
+      // Non-critical — token is already invalid if we're here from a 401
+    }
     notificationsStore.reset();
 
     await clearPersistedSession();

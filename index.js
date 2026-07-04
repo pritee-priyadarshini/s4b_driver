@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { registerRootComponent } from 'expo';
 
@@ -9,8 +10,8 @@ const IS_EXPO_GO = Constants.appOwnership === 'expo';
 const FIREBASE_ENABLED = Constants.expoConfig?.extra?.firebaseEnabled === true;
 
 if (!IS_EXPO_GO) {
-  const { setNotificationHandler } = require('expo-notifications');
-  setNotificationHandler({
+  const Notifications = require('expo-notifications');
+  Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
       shouldShowList: true,
@@ -18,6 +19,17 @@ if (!IS_EXPO_GO) {
       shouldSetBadge: false,
     }),
   });
+
+  if (Platform.OS === 'android') {
+    Notifications.setNotificationChannelAsync('pickup_alerts', {
+      name: 'Pickup Alerts',
+      description: 'Loud alerts for new pickup requests',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 800, 400, 800, 400, 800, 400, 800, 400, 800],
+      enableVibrate: true,
+      sound: 'default',
+    }).catch(() => {});
+  }
 
   if (FIREBASE_ENABLED) {
     try {

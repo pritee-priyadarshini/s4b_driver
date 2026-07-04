@@ -4,6 +4,7 @@ import * as Application from 'expo-application';
 
 import { showAppSettingsPrompt } from '../utils/appAlert';
 import { extractApiMessage } from '../utils/apiError';
+import { isPickupAlertType } from '../utils/pickupAlert';
 
 import {
   notificationsService,
@@ -126,12 +127,22 @@ function getNotificationsModule() {
 async function setupAndroidNotificationChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   const Notifications = getNotificationsModule();
-  await Notifications.setNotificationChannelAsync('default', {
-    name: 'Default',
-    importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 250, 250, 250],
-  });
-  pushLog('Android notification channel "default" ready');
+  await Promise.all([
+    Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+    }),
+    Notifications.setNotificationChannelAsync('pickup_alerts', {
+      name: 'Pickup Alerts',
+      description: 'Loud alerts for new pickup requests',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 800, 400, 800, 400, 800, 400, 800, 400, 800],
+      enableVibrate: true,
+      sound: 'default',
+    }),
+  ]);
+  pushLog('Android notification channels ready (default + pickup_alerts)');
 }
 
 function showNotificationSettingsAlert(): void {
@@ -453,24 +464,50 @@ export function setupForegroundNotificationHandler(): void {
     require('@react-native-firebase/messaging') as typeof import('@react-native-firebase/messaging');
 
   foregroundUnsubscribe = messaging().onMessage(async (remoteMessage) => {
+    const data = (remoteMessage.data ?? {}) as Record<string, string>;
     pushLog('Foreground FCM message received', {
       messageId: remoteMessage.messageId,
       title: remoteMessage.notification?.title,
       body: remoteMessage.notification?.body,
-      data: remoteMessage.data,
+      data,
     });
+
+    const isPickup = isPickupAlertType(data.type);
+    const channelId = isPickup ? 'pickup_alerts' : 'default';
+
+    let soundEnabled = true;
+    if (isPickup) {
+      try {
+        const { useNotificationPrefsStore } = require('../store/notificationPrefsStore');
+        soundEnabled = useNotificationPrefsStore.getState().alertSoundEnabled;
+      } catch {}
+    }
 
     if (remoteMessage.notification?.title || remoteMessage.notification?.body) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: remoteMessage.notification.title ?? '',
           body: remoteMessage.notification.body ?? '',
-          data: { ...(remoteMessage.data ?? {}), _localNotif: '1' },
-          sound: true,
+          data: { ...data, _localNotif: '1' },
+          sound: soundEnabled,
         },
-        trigger: null,
+        trigger: Platform.OS === 'android' ? { channelId } : null,
       });
-      pushLog('Foreground banner scheduled via expo-notifications');
+      pushLog('Foreground banner scheduled via expo-notifications', { channelId, soundEnabled });
+    }
+
+    if (isPickup && data.claimId && data.listingId) {
+      const { usePickupAlertStore } = require('../store/pickupAlertStore');
+      usePickupAlertStore.getState().show({
+        claimId: data.claimId,
+        listingId: data.listingId,
+        title: remoteMessage.notification?.title ?? 'New pickup available!',
+        body: remoteMessage.notification?.body ?? '',
+        type: data.type,
+        claimMode: data.claimMode,
+        remainingQtyKg: data.remainingQtyKg,
+      });
+      pushLog('Pickup alert modal triggered', { type: data.type, claimId: data.claimId });
     }
   });
 

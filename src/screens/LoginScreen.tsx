@@ -26,8 +26,8 @@ import {
   getForgotPasswordSuccessMessage,
   getLoginErrorMessage,
   getOtpVerificationErrorMessage,
-  showSuccessAlert,
 } from '../utils/apiError';
+import { showSuccessAlert } from '../utils/appAlert';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { hp, normalize, wp } from '../utils/responsive';
 

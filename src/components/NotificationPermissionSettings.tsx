@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppText } from './AppText';
 import { Skeleton } from './Skeleton';
 import { useNotificationsStore } from '../store/notificationsStore';
+import { useNotificationPrefsStore } from '../store/notificationPrefsStore';
 import type { NotificationPermissionState } from '../store/notificationsStore';
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -60,10 +61,17 @@ export function NotificationPermissionSettings() {
   const registerDeviceToken = useNotificationsStore((s) => s.registerDeviceToken);
   const openSystemSettings = useNotificationsStore((s) => s.openSystemSettings);
 
+  const alertSoundEnabled = useNotificationPrefsStore((s) => s.alertSoundEnabled);
+  const alertVibrationEnabled = useNotificationPrefsStore((s) => s.alertVibrationEnabled);
+  const setAlertSound = useNotificationPrefsStore((s) => s.setAlertSound);
+  const setAlertVibration = useNotificationPrefsStore((s) => s.setAlertVibration);
+  const loadPrefs = useNotificationPrefsStore((s) => s.load);
+
   useFocusEffect(
     React.useCallback(() => {
       void fetchPermission();
-    }, [fetchPermission]),
+      void loadPrefs();
+    }, [fetchPermission, loadPrefs]),
   );
 
   const presentation = useMemo(
@@ -170,6 +178,50 @@ export function NotificationPermissionSettings() {
           <Ionicons name="chevron-forward" size={16} color={palette.primary} />
         </Pressable>
       ) : null}
+
+      {permission.granted && permission.firebaseEnabled ? (
+        <View style={styles.prefsSection}>
+          <AppText variant="bodyBold" style={styles.prefsSectionTitle}>
+            Pickup Alerts
+          </AppText>
+
+          <View style={styles.prefRow}>
+            <View style={styles.prefRowLeft}>
+              <Ionicons name="volume-high-outline" size={20} color={palette.kale} />
+              <View style={styles.prefRowText}>
+                <AppText variant="body">Alert Sound</AppText>
+                <AppText variant="caption" color={palette.textMuted}>
+                  Play notification sound for new pickups
+                </AppText>
+              </View>
+            </View>
+            <Switch
+              value={alertSoundEnabled}
+              onValueChange={setAlertSound}
+              trackColor={{ false: palette.strokecream, true: palette.kale + '80' }}
+              thumbColor={alertSoundEnabled ? palette.kale : '#f4f3f4'}
+            />
+          </View>
+
+          <View style={styles.prefRow}>
+            <View style={styles.prefRowLeft}>
+              <Ionicons name="phone-portrait-outline" size={20} color={palette.kale} />
+              <View style={styles.prefRowText}>
+                <AppText variant="body">Alert Vibration</AppText>
+                <AppText variant="caption" color={palette.textMuted}>
+                  Vibrate for 10 seconds on new pickups
+                </AppText>
+              </View>
+            </View>
+            <Switch
+              value={alertVibrationEnabled}
+              onValueChange={setAlertVibration}
+              trackColor={{ false: palette.strokecream, true: palette.kale + '80' }}
+              thumbColor={alertVibrationEnabled ? palette.kale : '#f4f3f4'}
+            />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -249,5 +301,31 @@ const styles = StyleSheet.create({
   },
   retryBtnText: {
     color: palette.validation,
+  },
+  prefsSection: {
+    gap: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: palette.strokecream,
+    paddingTop: spacing.md,
+  },
+  prefsSectionTitle: {
+    marginBottom: spacing.xs,
+  },
+  prefRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  prefRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  prefRowText: {
+    flex: 1,
+    gap: 2,
   },
 });
