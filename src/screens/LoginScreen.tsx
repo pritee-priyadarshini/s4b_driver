@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
   Image,
+  ImageBackground,
   Keyboard,
   Platform,
   KeyboardAvoidingView,
@@ -36,25 +37,10 @@ type Mode = 'login' | 'forgot';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
 
-const valueProps = [
-  {
-    image: require('../../assets/intro/welcome_reduce_waste.png'),
-    label: 'Reduce waste',
-  },
-  {
-    image: require('../../assets/intro/welcome_feed_communities.png'),
-    label: 'Feed communities',
-  },
-  {
-    image: require('../../assets/intro/welcome_connect_locally.png'),
-    label: 'Connect locally',
-  },
-];
-
 const MODE_COPY: Record<Mode, { title: string; subtitle: string }> = {
   login: {
     title: 'Welcome back',
-    subtitle: 'Sign in to manage your pickup routes and live shifts.',
+    subtitle: 'Sign in to manage your pickup routes.',
   },
   forgot: {
     title: 'Forgot password?',
@@ -299,16 +285,37 @@ export function LoginScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const inputs = useRef<(TextInput | null)[]>([]);
+  const passwordRef = useRef<TextInput | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [resetError, setResetError] = useState('');
   const [resetStep, setResetStep] = useState<1 | 2>(1);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const trimmedEmail = email.trim().toLowerCase();
   const copy = MODE_COPY[mode];
   const isBusy = authLoading || loading;
+  const keyboardVisible = keyboardHeight > 0;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const closeResetModal = () => {
     setResetModalVisible(false);
@@ -470,27 +477,50 @@ export function LoginScreen() {
     }
   };
 
+  const scrollFieldIntoView = () => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  };
+
+  const androidKeyboardPad =
+    Platform.OS === 'android' && keyboardVisible
+      ? Math.max(0, keyboardHeight - insets.bottom)
+      : 0;
+
   return (
     <Screen backgroundColor={palette.creme} scrollable={false} transparentTop>
       <StatusBar style="dark" translucent backgroundColor="transparent" />
-      <View style={styles.topAccent} />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardView}
+      <ImageBackground
+        source={require('../../assets/intro/splash.png')}
+        style={styles.background}
+        resizeMode="cover"
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            styles.scrollContentCentered,
-            {
-              paddingTop: insets.top + hp(3.5),
-              paddingBottom: insets.bottom + hp(2.5),
-            },
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <View style={styles.topAccent} />
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         >
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={[
+              styles.scrollContent,
+              !keyboardVisible && styles.scrollContentSteady,
+              {
+                paddingTop: insets.top + (keyboardVisible ? hp(1.5) : hp(3)),
+                paddingBottom: insets.bottom + hp(2.5) + androidKeyboardPad + (keyboardVisible ? hp(2) : hp(14)),
+              },
+            ]}
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={keyboardVisible}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            scrollEnabled={keyboardVisible}
+            bounces={keyboardVisible}
+            overScrollMode={keyboardVisible ? 'always' : 'never'}
+          >
           {mode === 'forgot' ? (
             <Pressable
               style={styles.backRow}
@@ -504,105 +534,113 @@ export function LoginScreen() {
             </Pressable>
           ) : null}
 
-          <View style={styles.formShell}>
+          <View style={[styles.hero, keyboardVisible && styles.heroCompact]}>
             {mode === 'login' ? (
-              <View style={styles.iconRow}>
-                {valueProps.map((item) => (
-                  <View key={item.label} style={styles.iconItem}>
-                    <Image source={item.image} style={styles.valuePropImage} resizeMode="contain" />
-                    <AppText variant="caption" color={palette.textMuted} style={styles.iconLabel}>
-                      {item.label}
-                    </AppText>
-                  </View>
-                ))}
-              </View>
+              <Image
+                source={require('../../assets/intro/driver-logo.png')}
+                style={[styles.driverLogo, keyboardVisible && styles.driverLogoCompact]}
+                resizeMode="contain"
+              />
             ) : null}
+            <AppText variant="h6" color={palette.primary} style={styles.formTitle}>
+              {copy.title}
+            </AppText>
+            <AppText variant="bodySmall" color={palette.textMuted} style={styles.formSubtitle}>
+              {copy.subtitle}
+            </AppText>
+          </View>
 
-            <View style={styles.formCard}>
-              <View style={styles.formHeaderBand}>
-                <Image
-                  source={require('../../assets/intro/logo.png')}
-                  style={styles.formLogo}
-                  resizeMode="contain"
-                />
-                <AppText variant="h6" color={palette.primary} style={styles.formTitle}>
-                  {copy.title}
-                </AppText>
-                <AppText variant="bodySmall" color={palette.textMuted} style={styles.formSubtitle}>
-                  {copy.subtitle}
-                </AppText>
-              </View>
+          <View style={styles.formCard}>
+            <View style={styles.fieldsPanel}>
+              <InputField
+                label="Email address"
+                placeholder="your@email.com"
+                value={email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="emailAddress"
+                returnKeyType={mode === 'login' ? 'next' : 'send'}
+                onSubmitEditing={() => {
+                  if (mode === 'login') {
+                    passwordRef.current?.focus();
+                  } else {
+                    void handleSendCode();
+                  }
+                }}
+                onFocus={scrollFieldIntoView}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setError('');
+                }}
+              />
 
-              <View style={styles.fieldsPanel}>
-                <InputField
-                  label="Email address"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setError('');
-                  }}
-                />
-
-                {mode === 'login' ? (
-                  <>
-                    <InputField
-                      label="Password"
-                      placeholder="Enter your password"
-                      value={password}
-                      secureTextEntry
-                      isPassword
-                      onChangeText={(text) => {
-                        setPassword(text);
-                        setError('');
-                      }}
-                    />
-
-                    <Pressable
-                      onPress={() => switchMode('forgot')}
-                      style={styles.forgotLinkWrap}
-                      hitSlop={4}
-                    >
-                      <AppText variant="bodySmall" color={palette.primary} style={styles.forgotLink}>
-                        Forgot password?
-                      </AppText>
-                    </Pressable>
-                  </>
-                ) : null}
-
-                <FormErrorBanner message={error} />
-
-                {mode === 'login' ? (
-                  <PrimaryButton
-                    label={isBusy ? 'Signing in...' : 'Sign in'}
-                    onPress={handleLogin}
-                    disabled={isBusy}
-                    showArrow
+              {mode === 'login' ? (
+                <>
+                  <InputField
+                    label="Password"
+                    placeholder="Enter your password"
+                    value={password}
+                    secureTextEntry
+                    isPassword
+                    textContentType="password"
+                    returnKeyType="go"
+                    inputRef={passwordRef}
+                    onSubmitEditing={() => {
+                      void handleLogin();
+                    }}
+                    onFocus={scrollFieldIntoView}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      setError('');
+                    }}
                   />
-                ) : null}
 
-                {mode === 'forgot' ? (
-                  <>
-                    <PrimaryButton
-                      label={isBusy ? 'Sending...' : 'Send verification code'}
-                      onPress={handleSendCode}
-                      disabled={isBusy}
-                    />
-                    <Pressable
-                      onPress={() => switchMode('login')}
-                      style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-                    >
-                      <AppText variant="bodyBold" color={palette.primary} style={styles.secondaryButtonText}>
-                        Back to sign in
-                      </AppText>
-                    </Pressable>
-                  </>
-                ) : null}
-              </View>
+                  <Pressable
+                    onPress={() => switchMode('forgot')}
+                    style={styles.forgotLinkWrap}
+                    hitSlop={4}
+                  >
+                    <AppText variant="bodySmall" color={palette.primary} style={styles.forgotLink}>
+                      Forgot password?
+                    </AppText>
+                  </Pressable>
+                </>
+              ) : null}
+
+              <FormErrorBanner message={error} />
+
+              {mode === 'login' ? (
+                <PrimaryButton
+                  label={isBusy ? 'Signing in...' : 'Sign in'}
+                  onPress={handleLogin}
+                  disabled={isBusy}
+                  showArrow
+                />
+              ) : null}
+
+              {mode === 'forgot' ? (
+                <>
+                  <PrimaryButton
+                    label={isBusy ? 'Sending...' : 'Send verification code'}
+                    onPress={handleSendCode}
+                    disabled={isBusy}
+                  />
+                  <Pressable
+                    onPress={() => switchMode('login')}
+                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+                  >
+                    <AppText variant="bodyBold" color={palette.primary} style={styles.secondaryButtonText}>
+                      Back to sign in
+                    </AppText>
+                  </Pressable>
+                </>
+              ) : null}
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </ImageBackground>
 
       <SavefulModal
         visible={resetModalVisible}
@@ -651,6 +689,9 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
   topAccent: {
     width: '100%',
     height: hp(0.35),
@@ -659,12 +700,15 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: wp(5),
-    gap: hp(1.2),
+    gap: hp(1.6),
   },
-  scrollContentCentered: {
+  scrollContentSteady: {
     justifyContent: 'center',
   },
   backRow: {
@@ -673,70 +717,29 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     gap: wp(0.5),
     paddingVertical: hp(0.3),
-    marginBottom: hp(0.5),
   },
   backRowText: {
     color: palette.kale,
     textTransform: 'none',
     fontSize: normalize(15),
   },
-  formShell: {
-    flex: 1,
-    gap: hp(1.8),
-    marginTop: hp(1.5),
-  },
-  iconRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  hero: {
+    alignItems: 'center',
+    gap: hp(0.4),
     paddingHorizontal: wp(2),
-    gap: wp(2),
   },
-  iconItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: hp(0.5),
+  heroCompact: {
+    gap: hp(0.25),
   },
-  valuePropImage: {
-    width: normalize(72),
-    height: normalize(72),
+  driverLogo: {
+    width: wp(46),
+    height: hp(12),
+    marginBottom: hp(0.2),
   },
-  iconLabel: {
-    textAlign: 'center',
-    fontSize: normalize(10),
-    lineHeight: normalize(13),
-    letterSpacing: 0.3,
-  },
-  formCard: {
-    backgroundColor: palette.white,
-    borderRadius: normalize(24),
-    borderWidth: 1,
-    borderColor: palette.strokecream,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: palette.black,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.1,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  formHeaderBand: {
-    alignItems: 'center',
-    gap: hp(0.6),
-    paddingHorizontal: wp(5),
-    paddingTop: hp(2),
-    paddingBottom: hp(2),
-    backgroundColor: palette.creme,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.strokecream,
-  },
-  formLogo: {
-    width: wp(36),
-    height: hp(5),
+  driverLogoCompact: {
+    width: wp(34),
+    height: hp(7.5),
+    marginBottom: hp(0.1),
   },
   formTitle: {
     textAlign: 'center',
@@ -749,17 +752,35 @@ const styles = StyleSheet.create({
     fontSize: normalize(14),
     lineHeight: normalize(20),
     textTransform: 'none',
-    maxWidth: wp(72),
+    maxWidth: wp(78),
+  },
+  formCard: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(22),
+    borderWidth: 1,
+    borderColor: palette.strokecream,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: palette.black,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   fieldsPanel: {
     paddingHorizontal: wp(5),
-    paddingTop: hp(2),
-    paddingBottom: hp(2.2),
-    gap: hp(1.3),
+    paddingTop: hp(1.8),
+    paddingBottom: hp(2),
+    gap: hp(1.2),
   },
   forgotLinkWrap: {
     alignSelf: 'flex-end',
-    marginTop: -hp(0.4),
+    marginTop: -hp(0.35),
   },
   forgotLink: {
     textTransform: 'none',
