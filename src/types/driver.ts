@@ -6,6 +6,7 @@ export type DriverPickupStatus =
   | 'CANCELLED';
 
 export type ApiClaimItem = {
+  qtyKg?: number;
   quantity?: number;
   qty?: number;
   foodItem: {

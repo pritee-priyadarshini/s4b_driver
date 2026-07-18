@@ -76,7 +76,8 @@ function mapClaimItems(pickup: ApiDriverPickup): DashboardPickupItem[] {
   if (items.length > 0) {
     return items.map((item) => ({
       name: item.foodItem.name,
-      qty: item.quantity ?? item.qty ?? 0,
+      // Backend ClaimItem uses qtyKg (Prisma); quantity/qty kept for older payloads
+      qty: item.qtyKg ?? item.quantity ?? item.qty ?? 0,
     }));
   }
 
