@@ -57,9 +57,14 @@ export function PickupAlertModal() {
 
     return () => {
       pulse.stop();
-      void stopPickupAlert();
     };
   }, [visible, alert, pulseAnim, slideAnim]);
+
+  // Only stop sound/vibration when the modal is fully dismissed — not on re-renders.
+  useEffect(() => {
+    if (visible) return;
+    void stopPickupAlert();
+  }, [visible]);
 
   const isAssignedAlert = alert?.type === 'driver_assigned';
 

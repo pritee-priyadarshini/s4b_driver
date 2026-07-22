@@ -122,6 +122,8 @@ export default {
         'FOREGROUND_SERVICE_LOCATION',
         'POST_NOTIFICATIONS',
         'android.permission.POST_NOTIFICATIONS',
+        'VIBRATE',
+        'android.permission.VIBRATE',
       ],
       config: {
         googleMaps: {

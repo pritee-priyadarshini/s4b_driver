@@ -45,13 +45,9 @@ if (!IS_EXPO_GO) {
         console.log('[Push] Background message received:', remoteMessage.messageId, data.type);
 
         try {
-          const { isPickupAlertType } = require('./src/utils/pickupAlert');
+          const { canProcessPickupNotificationData } = require('./src/utils/pickupAlert');
           const { processIncomingPickupNotification } = require('./src/services/pushNotifications');
-          if (
-            isPickupAlertType(data.type) &&
-            data.claimId &&
-            data.listingId
-          ) {
+          if (canProcessPickupNotificationData(data)) {
             await processIncomingPickupNotification({
               data,
               notification: remoteMessage.notification,

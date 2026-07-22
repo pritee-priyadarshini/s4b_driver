@@ -63,6 +63,12 @@ function AppRoot({ fontsReady, splashTimerDone, onSplashFinish }: AppRootProps) 
   useEffect(() => {
     if (!appReady) return;
     void useDriverShiftStore.getState().hydrate();
+    try {
+      const { useNotificationPrefsStore } = require('./src/store/notificationPrefsStore');
+      void useNotificationPrefsStore.getState().load();
+    } catch {
+      // ignore
+    }
   }, [appReady]);
 
   if (!appReady) {

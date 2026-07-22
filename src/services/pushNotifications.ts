@@ -7,8 +7,10 @@ import { extractApiMessage } from '../utils/apiError';
 import {
   deliverPickupNotificationAlert,
   ensurePickupAlertChannel,
+  canProcessPickupNotificationData,
   isPickupAlertActive,
   isPickupAlertType,
+  startPickupAlert,
 } from '../utils/pickupAlert';
 
 import {
@@ -122,29 +124,41 @@ export async function processIncomingPickupNotification(params: {
   let vibrationEnabled = true;
   try {
     const { useNotificationPrefsStore } = require('../store/notificationPrefsStore');
+    const prefsStore = useNotificationPrefsStore.getState();
+    if (!prefsStore.loaded) {
+      await prefsStore.load();
+    }
     const prefs = useNotificationPrefsStore.getState();
-    soundEnabled = prefs.alertSoundEnabled;
-    vibrationEnabled = prefs.alertVibrationEnabled;
+    soundEnabled = prefs.alertSoundEnabled !== false;
+    vibrationEnabled = prefs.alertVibrationEnabled !== false;
   } catch {
-    // prefs store unavailable — use defaults
+    // prefs store unavailable — use defaults (both on)
   }
 
   const isNewAlert = source !== 'tap' || !isPickupAlertActive();
 
   if (isNewAlert) {
+    pushLog('Starting pickup sound/vibration', {
+      source,
+      soundEnabled,
+      vibrationEnabled,
+      type: data.type,
+    });
+
     // Native notification sound — works open, background, or screen off (when JS is running).
     if (soundEnabled) {
       await deliverPickupNotificationAlert({ title, body, data });
     }
 
     // Extra alarm bursts + vibration so driver feels it in pocket.
-    const { startPickupAlert } = require('../utils/pickupAlert');
-    startPickupAlert({ vibration: vibrationEnabled, sound: soundEnabled });
+    await startPickupAlert({ vibration: vibrationEnabled, sound: soundEnabled });
     pushLog('Pickup alert delivered on receive', {
       source,
       claimId: data.claimId,
       pickupId: data.pickupId,
       type: data.type,
+      soundEnabled,
+      vibrationEnabled,
     });
   }
 
@@ -574,9 +588,7 @@ export function setupForegroundNotificationHandler(): void {
 
     if (
       isPickup &&
-      (data.type === 'driver_assigned'
-        ? !!data.pickupId
-        : !!(data.claimId && data.listingId))
+      canProcessPickupNotificationData(data)
     ) {
       await processIncomingPickupNotification({
         data,

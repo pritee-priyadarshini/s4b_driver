@@ -1,23 +1,29 @@
 import { Platform, Vibration } from 'react-native';
 
 const VIBRATE_PATTERN = [0, 800, 400, 800, 400, 800, 400, 800, 400, 800, 400, 800];
-const ALERT_DURATION_MS = 10_000;
-const ALARM_BURST_COUNT = 5;
-const ALARM_BURST_INTERVAL_MS = 2000;
+const IOS_VIBRATE_INTERVAL_MS = 1100;
+const ALERT_DURATION_MS = 12_000;
+const ALARM_BURST_COUNT = 6;
+const ALARM_BURST_INTERVAL_MS = 1800;
 
 /** Android raw resource name — no extension, underscores only. */
 export const PICKUP_ALERT_SOUND = 'pickup_alert';
 /** iOS bundled notification sound filename. */
 export const PICKUP_ALERT_SOUND_IOS = 'pickup_alert.wav';
-/** New channel id so Android picks up the custom sound (channels are immutable). */
-export const PICKUP_ALERT_CHANNEL = 'pickup_alarm_v2';
+/**
+ * Android channel id. Bumped when channel settings change — Android channels are immutable,
+ * so a new id is required for sound/vibration updates to take effect.
+ */
+export const PICKUP_ALERT_CHANNEL = 'pickup_alarm_v3';
 
 let vibrationTimer: ReturnType<typeof setTimeout> | null = null;
+let iosVibrationInterval: ReturnType<typeof setInterval> | null = null;
 let alarmStopTimer: ReturnType<typeof setTimeout> | null = null;
 let alarmBurstTimer: ReturnType<typeof setTimeout> | null = null;
 let alarmBurstCancelled = false;
 let alarmBurstIndex = 0;
 let pickupAlertActive = false;
+let startGeneration = 0;
 
 export function isPickupAlertActive(): boolean {
   return pickupAlertActive;
@@ -41,6 +47,14 @@ function getImmediateTrigger(): import('expo-notifications').NotificationTrigger
   return Platform.OS === 'android' ? { channelId: PICKUP_ALERT_CHANNEL } : null;
 }
 
+function alertLog(message: string, detail?: Record<string, unknown>): void {
+  if (detail) {
+    console.log(`[PickupAlert] ${message}`, detail);
+    return;
+  }
+  console.log(`[PickupAlert] ${message}`);
+}
+
 export async function ensurePickupAlertChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
 
@@ -50,7 +64,7 @@ export async function ensurePickupAlertChannel(): Promise<void> {
   try {
     await Notifications.setNotificationChannelAsync(PICKUP_ALERT_CHANNEL, {
       name: 'Pickup Alarm',
-      description: 'Loud alarm when a pickup is available — works with phone in pocket',
+      description: 'Loud alarm + vibration when a pickup is available',
       importance: Notifications.AndroidImportance.MAX,
       sound: PICKUP_ALERT_SOUND,
       vibrationPattern: VIBRATE_PATTERN,
@@ -58,6 +72,7 @@ export async function ensurePickupAlertChannel(): Promise<void> {
       bypassDnd: true,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
+    alertLog('Android channel ready', { channel: PICKUP_ALERT_CHANNEL });
   } catch (err) {
     console.warn('[PickupAlert] Could not create alarm channel', err);
   }
@@ -81,9 +96,14 @@ export async function deliverPickupNotificationAlert(params: {
         body: params.body,
         sound: getNotificationSound(),
         priority: Notifications.AndroidNotificationPriority.MAX,
+        vibrate: VIBRATE_PATTERN,
         data: { ...params.data, _pickupNotif: '1' },
       },
       trigger: getImmediateTrigger(),
+    });
+    alertLog('Primary pickup notification scheduled', {
+      sound: getNotificationSound(),
+      channel: Platform.OS === 'android' ? PICKUP_ALERT_CHANNEL : 'ios',
     });
   } catch (err) {
     console.warn('[PickupAlert] Custom pickup notification failed, using default sound', err);
@@ -94,6 +114,7 @@ export async function deliverPickupNotificationAlert(params: {
           body: params.body,
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: VIBRATE_PATTERN,
           data: { ...params.data, _pickupNotif: '1' },
         },
         trigger: getImmediateTrigger(),
@@ -111,27 +132,32 @@ async function fireAlarmBurst(Notifications: NotificationsModule): Promise<void>
       body: 'Accept the pickup request',
       sound: getNotificationSound(),
       priority: Notifications.AndroidNotificationPriority.MAX,
+      vibrate: VIBRATE_PATTERN,
       data: { _alarmSound: '1' },
     },
     trigger: getImmediateTrigger(),
   });
 }
 
-async function playAlarmBursts(): Promise<void> {
+async function playAlarmBursts(generation: number): Promise<void> {
   const Notifications = getNotificationsModule();
   if (!Notifications) return;
 
   await ensurePickupAlertChannel();
   await stopAlarmBursts();
 
+  if (generation !== startGeneration) return;
+
   alarmBurstCancelled = false;
   alarmBurstIndex = 0;
 
   const playNextBurst = async () => {
-    if (alarmBurstCancelled || alarmBurstIndex >= ALARM_BURST_COUNT) return;
+    if (alarmBurstCancelled || generation !== startGeneration) return;
+    if (alarmBurstIndex >= ALARM_BURST_COUNT) return;
 
     try {
       await fireAlarmBurst(Notifications);
+      alertLog('Alarm burst fired', { index: alarmBurstIndex + 1 });
     } catch (err) {
       console.warn('[PickupAlert] Custom alarm sound failed, using default', err);
       try {
@@ -141,6 +167,7 @@ async function playAlarmBursts(): Promise<void> {
             body: 'Accept the pickup request',
             sound: 'default',
             priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: VIBRATE_PATTERN,
             data: { _alarmSound: '1' },
           },
           trigger: getImmediateTrigger(),
@@ -152,7 +179,11 @@ async function playAlarmBursts(): Promise<void> {
 
     alarmBurstIndex += 1;
 
-    if (!alarmBurstCancelled && alarmBurstIndex < ALARM_BURST_COUNT) {
+    if (
+      !alarmBurstCancelled &&
+      generation === startGeneration &&
+      alarmBurstIndex < ALARM_BURST_COUNT
+    ) {
       alarmBurstTimer = setTimeout(() => {
         void playNextBurst();
       }, ALARM_BURST_INTERVAL_MS);
@@ -172,44 +203,75 @@ async function stopAlarmBursts(): Promise<void> {
   }
 }
 
-export function startPickupAlert(options: { vibration?: boolean; sound?: boolean } = {}): void {
-  void stopPickupAlert();
-
-  pickupAlertActive = true;
-  const { vibration = true, sound = true } = options;
-
-  if (sound) {
-    void playAlarmBursts();
-    alarmStopTimer = setTimeout(() => {
-      void stopAlarmBursts();
-    }, ALERT_DURATION_MS);
-  }
-
-  if (vibration) {
-    if (Platform.OS === 'android') {
-      Vibration.vibrate(VIBRATE_PATTERN, true);
-    } else {
-      Vibration.vibrate(VIBRATE_PATTERN);
-    }
-    vibrationTimer = setTimeout(() => {
-      Vibration.cancel();
-      vibrationTimer = null;
-    }, ALERT_DURATION_MS);
-  }
-}
-
-export async function stopPickupAlert(): Promise<void> {
-  pickupAlertActive = false;
+function stopVibration(): void {
   Vibration.cancel();
   if (vibrationTimer) {
     clearTimeout(vibrationTimer);
     vibrationTimer = null;
   }
+  if (iosVibrationInterval) {
+    clearInterval(iosVibrationInterval);
+    iosVibrationInterval = null;
+  }
+}
+
+function startVibration(generation: number): void {
+  stopVibration();
+
+  if (Platform.OS === 'android') {
+    // Repeating pattern until cancelled.
+    Vibration.vibrate(VIBRATE_PATTERN, true);
+  } else {
+    // iOS ignores vibrate patterns — pulse repeatedly instead.
+    Vibration.vibrate();
+    iosVibrationInterval = setInterval(() => {
+      if (generation !== startGeneration) return;
+      Vibration.vibrate();
+    }, IOS_VIBRATE_INTERVAL_MS);
+  }
+
+  vibrationTimer = setTimeout(() => {
+    if (generation !== startGeneration) return;
+    stopVibration();
+  }, ALERT_DURATION_MS);
+
+  alertLog('Vibration started', { platform: Platform.OS, durationMs: ALERT_DURATION_MS });
+}
+
+export async function startPickupAlert(
+  options: { vibration?: boolean; sound?: boolean } = {},
+): Promise<void> {
+  await stopPickupAlert();
+
+  const generation = ++startGeneration;
+  pickupAlertActive = true;
+  const { vibration = true, sound = true } = options;
+
+  alertLog('Starting pickup alert', { vibration, sound, generation });
+
+  if (sound) {
+    void playAlarmBursts(generation);
+    alarmStopTimer = setTimeout(() => {
+      if (generation !== startGeneration) return;
+      void stopAlarmBursts();
+    }, ALERT_DURATION_MS);
+  }
+
+  if (vibration) {
+    startVibration(generation);
+  }
+}
+
+export async function stopPickupAlert(): Promise<void> {
+  pickupAlertActive = false;
+  startGeneration += 1;
+  stopVibration();
   if (alarmStopTimer) {
     clearTimeout(alarmStopTimer);
     alarmStopTimer = null;
   }
   await stopAlarmBursts();
+  alertLog('Pickup alert stopped');
 }
 
 const PICKUP_NOTIFICATION_TYPES = new Set([
@@ -228,4 +290,11 @@ export function isDriverAssignedAlert(type: string | undefined): boolean {
 
 export function isAlarmSoundNotification(data: Record<string, unknown> | undefined): boolean {
   return data?._alarmSound === '1';
+}
+
+/** Shared gate for foreground + background pickup alert handling. */
+export function canProcessPickupNotificationData(data: Record<string, string | undefined>): boolean {
+  if (!isPickupAlertType(data.type)) return false;
+  if (data.type === 'driver_assigned') return !!data.pickupId;
+  return !!(data.claimId && data.listingId);
 }

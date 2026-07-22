@@ -18,7 +18,7 @@ import {
   type NotificationPayload,
 } from '../services/pushNotifications';
 import { PickupAlertModal } from '../components/PickupAlertModal';
-import { isPickupAlertType } from '../utils/pickupAlert';
+import { canProcessPickupNotificationData } from '../utils/pickupAlert';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -37,20 +37,14 @@ export function AppNavigator() {
 
     const data = payload.data ?? {};
 
-    if (isPickupAlertType(data.type)) {
-      const canProcess =
-        data.type === 'driver_assigned'
-          ? !!data.pickupId
-          : !!(data.claimId && data.listingId);
-      if (canProcess) {
-        navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
-        void processIncomingPickupNotification({
-          data: data as Record<string, string>,
-          notification: payload.notification,
-          source: 'tap',
-        });
-        return;
-      }
+    if (canProcessPickupNotificationData(data)) {
+      navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
+      void processIncomingPickupNotification({
+        data: data as Record<string, string>,
+        notification: payload.notification,
+        source: 'tap',
+      });
+      return;
     }
 
     if (data.pickupId) {
