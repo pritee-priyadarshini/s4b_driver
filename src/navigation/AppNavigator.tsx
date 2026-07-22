@@ -37,17 +37,23 @@ export function AppNavigator() {
 
     const data = payload.data ?? {};
 
-    if (isPickupAlertType(data.type) && data.claimId && data.listingId) {
-      navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
-      void processIncomingPickupNotification({
-        data: data as Record<string, string>,
-        notification: payload.notification,
-        source: 'tap',
-      });
-      return;
+    if (isPickupAlertType(data.type)) {
+      const canProcess =
+        data.type === 'driver_assigned'
+          ? !!data.pickupId
+          : !!(data.claimId && data.listingId);
+      if (canProcess) {
+        navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
+        void processIncomingPickupNotification({
+          data: data as Record<string, string>,
+          notification: payload.notification,
+          source: 'tap',
+        });
+        return;
+      }
     }
 
-    if (data.pickupId || data.type === 'driver_assigned') {
+    if (data.pickupId) {
       navigationRef.current.navigate('MainTabs', { screen: 'Dashboard' });
       return;
     }

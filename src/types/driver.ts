@@ -1,4 +1,5 @@
 export type DriverPickupStatus =
+  | 'ASSIGNED'
   | 'ACCEPTED'
   | 'EN_ROUTE'
   | 'ARRIVED'

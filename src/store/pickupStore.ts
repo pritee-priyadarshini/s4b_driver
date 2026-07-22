@@ -26,6 +26,7 @@ type PickupState = {
   updatePickupStatus: (pickupId: number, status: DriverPickupStatus) => Promise<ApiDriverPickup>;
   completePickup: (pickupId: number) => Promise<ApiDriverPickup>;
   acceptPickup: (claimId: number, listingId: number) => Promise<void>;
+  respondToAssignment: (pickupId: number, accept: boolean) => Promise<void>;
   removePickupLocally: (pickupId: number) => void;
   patchPickupLocally: (pickupId: number, patch: Partial<DashboardPickup>) => void;
   clearError: () => void;
@@ -120,6 +121,66 @@ export const usePickupStore = create<PickupState>((set, get) => ({
       const message =
         err instanceof Error ? err.message : 'Failed to accept pickup';
       set({ error: message });
+      throw err;
+    }
+  },
+
+  respondToAssignment: async (pickupId, accept) => {
+    set({ actionPickupId: pickupId, error: null });
+    try {
+      const res = await driverService.respondToAssignment(pickupId, accept);
+      if (!accept) {
+        set((state) => ({
+          actionPickupId: null,
+          currentPickups: state.currentPickups.filter((p) => p.pickupId !== pickupId),
+          rawCurrent: state.rawCurrent.filter((p) => p.id !== pickupId),
+        }));
+        return;
+      }
+
+      const existing = get().rawCurrent.find((p) => p.id === pickupId);
+      const updated = res.data?.pickup;
+      // Respond payload is a bare pickup row — keep nested claim/listing from current list.
+      const merged: ApiDriverPickup | null = existing
+        ? {
+            ...existing,
+            ...(updated ?? {}),
+            status: 'ACCEPTED',
+            claim: existing.claim,
+            listing: existing.listing,
+          }
+        : updated
+          ? { ...updated, status: 'ACCEPTED' }
+          : null;
+
+      if (!merged?.claim || !merged?.listing) {
+        // Fallback: reload details so dashboard stays consistent.
+        const details = await driverService.getPickupDetails(pickupId);
+        const mapped = mapApiPickupToDashboard(details.data);
+        set((state) => ({
+          actionPickupId: null,
+          rawCurrent: state.rawCurrent.some((p) => p.id === pickupId)
+            ? state.rawCurrent.map((p) => (p.id === pickupId ? details.data : p))
+            : [...state.rawCurrent, details.data],
+          currentPickups: state.currentPickups.some((p) => p.pickupId === pickupId)
+            ? state.currentPickups.map((p) => (p.pickupId === pickupId ? mapped : p))
+            : [...state.currentPickups, mapped],
+        }));
+        return;
+      }
+
+      const mapped = mapApiPickupToDashboard(merged);
+      set((state) => ({
+        actionPickupId: null,
+        rawCurrent: state.rawCurrent.map((p) => (p.id === pickupId ? merged : p)),
+        currentPickups: state.currentPickups.map((p) =>
+          p.pickupId === pickupId ? mapped : p,
+        ),
+      }));
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to respond to assignment';
+      set({ actionPickupId: null, error: message });
       throw err;
     }
   },

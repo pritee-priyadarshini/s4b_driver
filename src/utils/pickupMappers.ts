@@ -2,7 +2,7 @@ import type { ApiDriverPickup, DriverPickupStatus } from '../types/driver';
 import type { HistoryOrder, OrderStatus } from '../types/history';
 import type { AuthDriver } from '../types/auth';
 
-export type TripPhase = 'assigned' | 'to_pickup' | 'to_charity' | 'delivering';
+export type TripPhase = 'pending_response' | 'assigned' | 'to_pickup' | 'to_charity' | 'delivering';
 
 export type DashboardPickupItem = {
   name: string;
@@ -89,6 +89,7 @@ function mapClaimItems(pickup: ApiDriverPickup): DashboardPickupItem[] {
 }
 
 export function statusToTripPhase(status: DriverPickupStatus): TripPhase {
+  if (status === 'ASSIGNED') return 'pending_response';
   if (status === 'EN_ROUTE') return 'to_pickup';
   if (status === 'ARRIVED') return 'to_charity';
   return 'assigned';

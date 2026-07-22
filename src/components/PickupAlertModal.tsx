@@ -28,6 +28,7 @@ export function PickupAlertModal() {
   const dismiss = usePickupAlertStore((s) => s.dismiss);
   const { driver } = useAuth();
   const acceptPickup = usePickupStore((s) => s.acceptPickup);
+  const respondToAssignment = usePickupStore((s) => s.respondToAssignment);
   const fetchCurrentPickups = usePickupStore((s) => s.fetchCurrentPickups);
   const insets = useSafeAreaInsets();
 
@@ -60,13 +61,23 @@ export function PickupAlertModal() {
     };
   }, [visible, alert, pulseAnim, slideAnim]);
 
+  const isAssignedAlert = alert?.type === 'driver_assigned';
+
   const handleAccept = async () => {
     if (!alert || acceptingRef.current) return;
     acceptingRef.current = true;
     await stopPickupAlert();
 
     try {
-      await acceptPickup(Number(alert.claimId), Number(alert.listingId));
+      if (isAssignedAlert) {
+        const pickupId = Number(alert.pickupId);
+        if (!Number.isFinite(pickupId)) {
+          throw new Error('Missing pickup id for assignment');
+        }
+        await respondToAssignment(pickupId, true);
+      } else {
+        await acceptPickup(Number(alert.claimId), Number(alert.listingId));
+      }
       dismiss();
       void fetchCurrentPickups(driver, useDriverShiftStore.getState().driverLocation);
     } catch (err: unknown) {
@@ -80,9 +91,32 @@ export function PickupAlertModal() {
     }
   };
 
-  const handleDecline = () => {
-    void stopPickupAlert();
-    dismiss();
+  const handleDecline = async () => {
+    if (!alert || acceptingRef.current) return;
+    acceptingRef.current = true;
+    await stopPickupAlert();
+
+    try {
+      if (isAssignedAlert) {
+        const pickupId = Number(alert.pickupId);
+        if (!Number.isFinite(pickupId)) {
+          throw new Error('Missing pickup id for assignment');
+        }
+        await respondToAssignment(pickupId, false);
+      }
+      dismiss();
+      if (isAssignedAlert) {
+        void fetchCurrentPickups(driver, useDriverShiftStore.getState().driverLocation);
+      }
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        usePickupStore.getState().error ??
+        'Failed to decline assignment. Please try again.';
+      showAppError('Decline failed', message);
+    } finally {
+      acceptingRef.current = false;
+    }
   };
 
   if (!visible || !alert) return null;
@@ -112,7 +146,11 @@ export function PickupAlertModal() {
           <View style={styles.badge}>
             <View style={styles.badgeDot} />
             <AppText variant="caption" style={styles.badgeText}>
-              {alert.type === 'pickup_available' ? 'Pickup Ready' : 'New Pickup'}
+              {isAssignedAlert
+                ? 'Assignment'
+                : alert.type === 'pickup_available'
+                  ? 'Pickup Ready'
+                  : 'New Pickup'}
             </AppText>
           </View>
 
@@ -132,11 +170,11 @@ export function PickupAlertModal() {
           >
             <Ionicons name="checkmark-circle" size={normalize(22)} color={palette.white} />
             <AppText variant="bodyBold" style={styles.acceptBtnText}>
-              Accept Pickup
+              {isAssignedAlert ? 'Accept Assignment' : 'Accept Pickup'}
             </AppText>
           </Pressable>
 
-          <Pressable style={styles.declineBtn} onPress={handleDecline}>
+          <Pressable style={styles.declineBtn} onPress={() => void handleDecline()}>
             <AppText variant="bodyBold" style={styles.declineBtnText}>
               Decline
             </AppText>

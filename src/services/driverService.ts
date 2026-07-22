@@ -26,6 +26,11 @@ type AcceptPickupResponse = {
   };
 };
 
+type RespondAssignmentResponse = {
+  message: string;
+  pickup?: ApiDriverPickup;
+};
+
 export const driverService = {
   goLive: (data: GoLivePayload) =>
     api.post<GoLiveResponse>('/drivers/live', data),
@@ -35,6 +40,9 @@ export const driverService = {
 
   acceptPickup: (data: AcceptPickupPayload) =>
     api.post<AcceptPickupResponse>('/drivers/pickup/accept', data),
+
+  respondToAssignment: (pickupId: number, accept: boolean) =>
+    api.patch<RespondAssignmentResponse>(`/drivers/pickups/${pickupId}/respond`, { accept }),
 
   getPickups: (filter: 'current' | 'past') =>
     api.get<ApiDriverPickup[]>('/drivers/pickups', { params: { filter } }),

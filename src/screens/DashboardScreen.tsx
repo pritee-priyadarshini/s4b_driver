@@ -82,6 +82,7 @@ function itemQty(items: DashboardPickupItem[]) {
 }
 
 function phaseLabel(phase: TripPhase) {
+  if (phase === 'pending_response') return 'Needs your response';
   if (phase === 'assigned') return 'New pickup';
   if (phase === 'to_pickup') return 'Heading to restaurant';
   if (phase === 'to_charity') return 'At restaurant';
@@ -89,6 +90,7 @@ function phaseLabel(phase: TripPhase) {
 }
 
 function slideLabel(phase: TripPhase) {
+  if (phase === 'pending_response') return 'Respond to assignment';
   if (phase === 'assigned') return 'Slide to start trip';
   if (phase === 'to_pickup') return 'Slide to confirm pickup';
   if (phase === 'to_charity') return 'Slide to go for delivery';
@@ -204,6 +206,7 @@ export function DashboardScreen() {
   const fetchCurrentPickups = usePickupStore((s) => s.fetchCurrentPickups);
   const updatePickupStatus = usePickupStore((s) => s.updatePickupStatus);
   const completePickup = usePickupStore((s) => s.completePickup);
+  const respondToAssignment = usePickupStore((s) => s.respondToAssignment);
   const removePickupLocally = usePickupStore((s) => s.removePickupLocally);
   const patchPickupLocally = usePickupStore((s) => s.patchPickupLocally);
 
@@ -328,7 +331,13 @@ export function DashboardScreen() {
   const sorted = useMemo(
     () =>
       [...pickups.map((p) => withDriverDistance(p, driverLocation))].sort((a, b) => {
-        const order: TripPhase[] = ['delivering', 'to_charity', 'to_pickup', 'assigned'];
+        const order: TripPhase[] = [
+          'pending_response',
+          'delivering',
+          'to_charity',
+          'to_pickup',
+          'assigned',
+        ];
         return order.indexOf(a.phase) - order.indexOf(b.phase);
       }),
     [pickups, driverLocation],
@@ -359,11 +368,32 @@ export function DashboardScreen() {
   };
 
   const openTripMap = (pickup: DashboardPickup) => {
+    if (pickup.phase === 'pending_response') return;
     setActiveTrip(pickup);
     setTripVisible(true);
   };
 
+  const handleAssignmentResponse = async (pickup: DashboardPickup, accept: boolean) => {
+    if (actionPickupId != null) return;
+    try {
+      await respondToAssignment(pickup.pickupId, accept);
+      if (accept) {
+        setActiveTrip((prev) => (prev?.id === pickup.id ? null : prev));
+      } else if (activeTrip?.id === pickup.id) {
+        setTripVisible(false);
+        setActiveTrip(null);
+      }
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        (err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      showAppError(accept ? 'Accept failed' : 'Decline failed', message);
+    }
+  };
+
   const handleSlideComplete = async (pickup: DashboardPickup) => {
+    if (pickup.phase === 'pending_response') return;
+
     if (liveStatus !== 'live') {
       showAppError('Go live first', 'Turn on Go live before starting a trip.');
       return;
@@ -705,11 +735,34 @@ export function DashboardScreen() {
           </AppText>
         </View>
 
-        <SlideToAct
-          label={isActioning ? 'Updating…' : slideLabel(item.phase)}
-          disabled={!isLive || isActioning}
-          onComplete={() => void handleSlideComplete(item)}
-        />
+        {item.phase === 'pending_response' ? (
+          <View style={styles.assignActions}>
+            <Pressable
+              style={[styles.assignDeclineBtn, isActioning && styles.assignBtnDisabled]}
+              disabled={isActioning}
+              onPress={() => void handleAssignmentResponse(item, false)}
+            >
+              <AppText variant="bodyBold" style={styles.assignDeclineText}>
+                {isActioning ? 'Updating…' : 'Decline'}
+              </AppText>
+            </Pressable>
+            <Pressable
+              style={[styles.assignAcceptBtn, isActioning && styles.assignBtnDisabled]}
+              disabled={isActioning}
+              onPress={() => void handleAssignmentResponse(item, true)}
+            >
+              <AppText variant="bodyBold" style={styles.assignAcceptText}>
+                {isActioning ? 'Updating…' : 'Accept'}
+              </AppText>
+            </Pressable>
+          </View>
+        ) : (
+          <SlideToAct
+            label={isActioning ? 'Updating…' : slideLabel(item.phase)}
+            disabled={!isLive || isActioning}
+            onComplete={() => void handleSlideComplete(item)}
+          />
+        )}
       </View>
     );
   };
@@ -1326,6 +1379,40 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: wp(2),
     paddingTop: hp(0.3),
+  },
+  assignActions: {
+    flexDirection: 'row',
+    gap: wp(2.5),
+    marginTop: hp(0.5),
+  },
+  assignAcceptBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: hp(1.6),
+    borderRadius: normalize(14),
+    backgroundColor: ACCENT,
+  },
+  assignDeclineBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: hp(1.6),
+    borderRadius: normalize(14),
+    borderWidth: 1.5,
+    borderColor: palette.strokecream,
+    backgroundColor: palette.white,
+  },
+  assignAcceptText: {
+    color: palette.white,
+    textTransform: 'none',
+  },
+  assignDeclineText: {
+    color: palette.stone,
+    textTransform: 'none',
+  },
+  assignBtnDisabled: {
+    opacity: 0.55,
   },
   slideTrack: {
     height: normalize(56),

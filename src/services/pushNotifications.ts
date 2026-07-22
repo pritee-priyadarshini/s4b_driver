@@ -101,10 +101,22 @@ export async function processIncomingPickupNotification(params: {
   source: PickupNotificationSource;
 }): Promise<void> {
   const { data, notification, source } = params;
-  if (!isPickupAlertType(data.type) || !data.claimId || !data.listingId) return;
+  if (!isPickupAlertType(data.type)) return;
 
-  const title = notification?.title ?? data.title ?? 'New pickup available!';
-  const body = notification?.body ?? data.body ?? 'A pickup needs your attention';
+  const isAssigned = data.type === 'driver_assigned';
+  if (isAssigned && !data.pickupId) return;
+  if (!isAssigned && (!data.claimId || !data.listingId)) return;
+
+  const title =
+    notification?.title ??
+    data.title ??
+    (isAssigned ? 'Pickup assigned to you' : 'New pickup available!');
+  const body =
+    notification?.body ??
+    data.body ??
+    (isAssigned
+      ? 'Accept or decline this assignment'
+      : 'A pickup needs your attention');
 
   let soundEnabled = true;
   let vibrationEnabled = true;
@@ -128,13 +140,19 @@ export async function processIncomingPickupNotification(params: {
     // Extra alarm bursts + vibration so driver feels it in pocket.
     const { startPickupAlert } = require('../utils/pickupAlert');
     startPickupAlert({ vibration: vibrationEnabled, sound: soundEnabled });
-    pushLog('Pickup alert delivered on receive', { source, claimId: data.claimId });
+    pushLog('Pickup alert delivered on receive', {
+      source,
+      claimId: data.claimId,
+      pickupId: data.pickupId,
+      type: data.type,
+    });
   }
 
   const { usePickupAlertStore } = require('../store/pickupAlertStore');
   usePickupAlertStore.getState().show({
-    claimId: data.claimId,
-    listingId: data.listingId,
+    claimId: data.claimId ?? '',
+    listingId: data.listingId ?? '',
+    pickupId: data.pickupId,
     title,
     body,
     type: data.type,
@@ -142,7 +160,26 @@ export async function processIncomingPickupNotification(params: {
     remainingQtyKg: data.remainingQtyKg,
   });
 
-  pushLog('Pickup alert processed', { source, claimId: data.claimId });
+  // Ensure ASSIGNED pickups appear on the dashboard when push arrives.
+  if (isAssigned) {
+    try {
+      const { usePickupStore } = require('../store/pickupStore');
+      const { useDriverShiftStore } = require('../store/driverShiftStore');
+      void usePickupStore.getState().fetchCurrentPickups(
+        null,
+        useDriverShiftStore.getState().driverLocation,
+      );
+    } catch {
+      // ignore — dashboard focus refresh will pick it up
+    }
+  }
+
+  pushLog('Pickup alert processed', {
+    source,
+    claimId: data.claimId,
+    pickupId: data.pickupId,
+    type: data.type,
+  });
 }
 
 export function logPushEnvironmentOnce(): void {
@@ -535,7 +572,12 @@ export function setupForegroundNotificationHandler(): void {
       pushLog('Foreground banner scheduled via expo-notifications', { channelId: 'default' });
     }
 
-    if (isPickup && data.claimId && data.listingId) {
+    if (
+      isPickup &&
+      (data.type === 'driver_assigned'
+        ? !!data.pickupId
+        : !!(data.claimId && data.listingId))
+    ) {
       await processIncomingPickupNotification({
         data,
         notification: remoteMessage.notification,

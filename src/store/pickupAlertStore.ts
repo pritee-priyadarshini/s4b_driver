@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export type PickupAlertData = {
   claimId: string;
   listingId: string;
+  pickupId?: string;
   title: string;
   body: string;
   type: string;

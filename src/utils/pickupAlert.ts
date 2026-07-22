@@ -215,10 +215,15 @@ export async function stopPickupAlert(): Promise<void> {
 const PICKUP_NOTIFICATION_TYPES = new Set([
   'claim_made_driver',
   'pickup_available',
+  'driver_assigned',
 ]);
 
 export function isPickupAlertType(type: string | undefined): boolean {
   return !!type && PICKUP_NOTIFICATION_TYPES.has(type);
+}
+
+export function isDriverAssignedAlert(type: string | undefined): boolean {
+  return type === 'driver_assigned';
 }
 
 export function isAlarmSoundNotification(data: Record<string, unknown> | undefined): boolean {
