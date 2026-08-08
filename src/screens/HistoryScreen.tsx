@@ -265,7 +265,7 @@ export function HistoryScreen({ navigation }: Props) {
           <View style={styles.ratingChip}>
             <Ionicons name="star" size={normalize(14)} color="#E8A317" />
             <AppText variant="bodySmall" color={palette.stone}>
-              Restaurant: <AppText variant="bodyBold">{item.restaurantRating}/5</AppText>
+              Food Business: <AppText variant="bodyBold">{item.restaurantRating}/5</AppText>
             </AppText>
           </View>
         </View>

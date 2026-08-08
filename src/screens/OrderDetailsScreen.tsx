@@ -230,7 +230,7 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
                   <Ionicons name="restaurant-outline" size={normalize(18)} color={ACCENT} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="caption" color={palette.stone}>Restaurant experience</AppText>
+                  <AppText variant="caption" color={palette.stone}>Food Business experience</AppText>
                   <StarRating rating={order.restaurantRating} />
                 </View>
                 <AppText variant="bodyBold" style={styles.ratingScore}>

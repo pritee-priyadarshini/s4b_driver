@@ -57,8 +57,10 @@ function formatTime(value?: string | null): string {
 function formatPickupWindow(from?: string | null, to?: string | null): string {
   const fromLabel = formatTime(from);
   const toLabel = formatTime(to);
-  if (fromLabel && toLabel) return `${fromLabel} – ${toLabel}`;
-  return fromLabel || toLabel || 'Window TBC';
+  if (fromLabel && toLabel) return `From ${fromLabel} – To ${toLabel}`;
+  if (fromLabel) return `From ${fromLabel}`;
+  if (toLabel) return `To ${toLabel}`;
+  return 'Times unavailable';
 }
 
 function buildStorageLabel(pickup: ApiDriverPickup): string {
