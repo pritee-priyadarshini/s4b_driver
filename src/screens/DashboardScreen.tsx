@@ -20,6 +20,7 @@ import { AppText } from '../components/AppText';
 import { AppBottomSheet } from '../components/AppBottomSheet';
 import { Screen } from '../components/Screen';
 import { HeroHeader } from '../components/HeroHeader';
+import { CharityLogoAvatar } from '../components/CharityLogoAvatar';
 import { Skeleton } from '../components/Skeleton';
 import { OsmMapView } from '../components/OsmMapView';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
@@ -44,12 +45,15 @@ const ACCENT = palette.kale;
 const ACCENT_SOFT = '#D8EBDF';
 const ACCENT_LIGHT = '#F2F8F4';
 const { width: SCREEN_W } = Dimensions.get('window');
+/** Half of the live card height — card straddles the hero edge. */
+const LIVE_OVERLAP = normalize(40);
 
 type Coord = { latitude: number; longitude: number };
 
 type CharityHub = {
   name: string;
   address: string;
+  logoUrl?: string | null;
   latitude?: number;
   longitude?: number;
 };
@@ -104,6 +108,7 @@ function getCharityHub(driver: AuthDriver | null, pickup?: DashboardPickup | nul
   return {
     name: pickup?.charityName ?? site?.name ?? org?.name ?? 'Your charity',
     address: pickup?.charityAddress ?? driver?.siteAccess?.address ?? site?.address ?? org?.address ?? '',
+    logoUrl: org?.logoUrl ?? null,
     latitude: pickup?.charityLatitude ?? site?.latitude ?? undefined,
     longitude: pickup?.charityLongitude ?? site?.longitude ?? undefined,
   };
@@ -507,33 +512,20 @@ export function DashboardScreen() {
 
   const headerLocation = useMemo(() => {
     if (liveStatus === 'offline') {
-      return {
-        icon: 'moon-outline' as const,
-        text: "You're offline",
-        pillStyle: styles.locationPillOffline,
-        iconColor: 'rgba(255,255,255,0.75)',
-      };
+      return { text: "You're offline" };
     }
     if (liveStatus === 'connecting') {
-      return {
-        icon: 'locate-outline' as const,
-        text: 'Getting your location…',
-        pillStyle: styles.locationPillConnecting,
-        iconColor: palette.white,
-      };
+      return { text: 'Getting your location…' };
     }
     return {
-      icon: 'navigate-circle' as const,
       text: shiftStartLabel ? `Started at ${shiftStartLabel}` : 'Shift location set',
-      pillStyle: styles.locationPillLive,
-      iconColor: palette.white,
     };
   }, [liveStatus, shiftStartLabel]);
 
   const renderHeader = () => (
     <HeroHeader
       source={require('../../assets/placeholder/kale-header.png')}
-      height={hp(22)}
+      height={hp(18)}
       style={styles.heroWrap}
       contentStyle={styles.heroContent}
     >
@@ -550,26 +542,7 @@ export function DashboardScreen() {
             {charityHub.name}
           </AppText>
         </View>
-        <View style={styles.logoCircle}>
-          <AppText style={styles.logoFallback}>
-            {(charityHub.name[0] || 'S').toUpperCase()}
-          </AppText>
-        </View>
-      </View>
-      <View style={[styles.locationPill, headerLocation.pillStyle]}>
-        {liveStatus === 'connecting' ? (
-          <>
-            <Skeleton width={normalize(14)} height={normalize(14)} borderRadius={normalize(7)} style={styles.locationSkeletonIcon} />
-            <Skeleton width={wp(42)} height={normalize(14)} borderRadius={normalize(7)} style={styles.locationSkeletonText} />
-          </>
-        ) : (
-          <>
-            <Ionicons name={headerLocation.icon} size={normalize(14)} color={headerLocation.iconColor} />
-            <AppText variant="caption" style={styles.locationPillText} numberOfLines={2}>
-              {headerLocation.text}
-            </AppText>
-          </>
-        )}
+        <CharityLogoAvatar logoUrl={charityHub.logoUrl} name={charityHub.name} />
       </View>
     </HeroHeader>
   );
@@ -584,10 +557,10 @@ export function DashboardScreen() {
 
     const cardSubtitle =
       liveStatus === 'live'
-        ? 'Location tracking on · Stays live until you turn off'
+        ? headerLocation.text
         : liveStatus === 'connecting'
           ? 'Finding your starting location'
-          : 'Tap to start your shift and share location';
+          : 'Start your shift to receive pickups';
 
     return (
       <Pressable
@@ -612,7 +585,7 @@ export function DashboardScreen() {
             ) : (
               <Ionicons
                 name={liveStatus === 'live' ? 'radio' : 'radio-outline'}
-                size={normalize(22)}
+                size={normalize(20)}
                 color={liveStatus === 'live' ? palette.white : ACCENT}
               />
             )}
@@ -621,7 +594,7 @@ export function DashboardScreen() {
             <AppText variant="bodyBold" style={styles.liveTitle}>
               {cardTitle}
             </AppText>
-            <AppText variant="bodySmall" color={palette.stone}>
+            <AppText variant="bodySmall" style={styles.liveSubtitle} numberOfLines={2}>
               {cardSubtitle}
             </AppText>
           </View>
@@ -658,111 +631,118 @@ export function DashboardScreen() {
 
     return (
       <View style={[styles.card, isActive && styles.cardActive]}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.statusBadge, { backgroundColor: ACCENT_SOFT }]}>
-            <View style={[styles.statusDot, { backgroundColor: ACCENT }]} />
-            <AppText variant="caption" style={{ color: ACCENT }}>
-              {phaseLabel(item.phase)}
+        <View style={[styles.cardAccent, isActive && styles.cardAccentActive]} />
+        <View style={styles.cardBody}>
+          <View style={styles.cardHeader}>
+            <View style={styles.statusBadge}>
+              <View style={[styles.statusDot, { backgroundColor: ACCENT }]} />
+              <AppText variant="caption" style={styles.statusText}>
+                {phaseLabel(item.phase)}
+              </AppText>
+            </View>
+            <AppText variant="caption" style={styles.distanceText}>
+              {item.distance}
             </AppText>
           </View>
-          <AppText variant="bodyBold" style={styles.distanceText}>
-            {item.distance}
+
+          <AppText variant="label" style={styles.restaurantTitle} numberOfLines={2}>
+            {item.title}
           </AppText>
-        </View>
 
-        <AppText variant="h6" style={styles.restaurantTitle}>
-          {item.title}
-        </AppText>
-
-        <View style={styles.addressRow}>
-          <Ionicons name="location-outline" size={normalize(18)} color={ACCENT} />
-          <AppText variant="bodySmall" color={palette.stone} style={styles.addressText}>
+          <AppText variant="bodySmall" style={styles.addressText} numberOfLines={2}>
             {item.address}
           </AppText>
-        </View>
 
-        <View style={styles.infoRow}>
-          <View style={styles.infoBox}>
-            <Ionicons name="time-outline" size={normalize(20)} color={ACCENT} />
-            <View style={styles.infoBoxText}>
-              <AppText variant="caption" color={palette.stone}>Pickup window</AppText>
-              <AppText variant="bodyBold" style={styles.infoValue}>{item.date}</AppText>
-              <AppText variant="bodySmall" color={palette.stone}>{item.time}</AppText>
+          <View style={styles.metaRow}>
+            <View style={styles.metaBlock}>
+              <AppText variant="caption" style={styles.metaLabel}>
+                Window
+              </AppText>
+              <AppText variant="bodyBold" style={styles.metaValue}>
+                {item.date}
+              </AppText>
+              <AppText variant="bodySmall" style={styles.metaSub}>
+                {item.time}
+              </AppText>
             </View>
-          </View>
-          <Pressable style={styles.infoBox} onPress={() => setFoodModal(item)}>
-            <Ionicons name="basket-outline" size={normalize(20)} color={ACCENT} />
-            <View style={styles.infoBoxText}>
-              <AppText variant="caption" color={palette.stone}>Food to collect</AppText>
-              <AppText variant="bodyBold" style={styles.infoValue}>{qty} kg</AppText>
-              <AppText variant="bodySmall" style={{ color: ACCENT }}>
+            <Pressable style={styles.metaBlockRight} onPress={() => setFoodModal(item)}>
+              <AppText variant="caption" style={styles.metaLabel}>
+                Collect
+              </AppText>
+              <AppText variant="bodyBold" style={styles.metaValue}>
+                {qty} kg
+              </AppText>
+              <AppText variant="caption" style={styles.metaLink}>
                 {item.items.length} items · View
               </AppText>
+            </Pressable>
+          </View>
+
+          {item.storage ? (
+            <AppText variant="bodySmall" style={styles.storageText}>
+              Storage · {item.storage}
+            </AppText>
+          ) : null}
+
+          {item.contact ? (
+            <View style={styles.contactRow}>
+              <Pressable
+                style={styles.contactBtn}
+                onPress={() => Linking.openURL(`tel:${item.contact.replace(/[^+\d]/g, '')}`)}
+              >
+                <Ionicons name="call-outline" size={normalize(16)} color={ACCENT} />
+                <AppText variant="bodyBold" style={styles.contactBtnText}>
+                  Call
+                </AppText>
+              </Pressable>
+              <Pressable
+                style={styles.contactBtn}
+                onPress={() => Linking.openURL(`sms:${item.contact}`)}
+              >
+                <Ionicons name="chatbubble-outline" size={normalize(16)} color={ACCENT} />
+                <AppText variant="bodyBold" style={styles.contactBtnText}>
+                  Message
+                </AppText>
+              </Pressable>
             </View>
-          </Pressable>
-        </View>
+          ) : null}
 
-        {item.storage ? (
-          <View style={styles.storageRow}>
-            <Ionicons name="snow-outline" size={normalize(16)} color={ACCENT} />
-            <AppText variant="bodySmall" color={palette.stone}>{item.storage}</AppText>
-          </View>
-        ) : null}
-
-        {item.contact ? (
-          <View style={styles.contactRow}>
-            <Pressable
-              style={styles.contactBtn}
-              onPress={() => Linking.openURL(`tel:${item.contact.replace(/[^+\d]/g, '')}`)}
-            >
-              <Ionicons name="call-outline" size={normalize(18)} color={ACCENT} />
-              <AppText variant="bodyBold" style={{ color: ACCENT }}>Call restaurant</AppText>
-            </Pressable>
-            <Pressable
-              style={styles.contactBtn}
-              onPress={() => Linking.openURL(`sms:${item.contact}`)}
-            >
-              <Ionicons name="chatbubble-outline" size={normalize(18)} color={ACCENT} />
-              <AppText variant="bodyBold" style={{ color: ACCENT }}>Message</AppText>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <View style={styles.charityNote}>
-          <Ionicons name="home-outline" size={normalize(16)} color={palette.stone} />
-          <AppText variant="bodySmall" color={palette.stone} style={{ flex: 1 }}>
-            Deliver to <AppText variant="bodyBold" style={{ color: palette.black }}>{charityHub.name}</AppText> after pickup
+          <AppText variant="bodySmall" style={styles.charityNote}>
+            Deliver to{' '}
+            <AppText variant="bodyBold" style={styles.charityNoteStrong}>
+              {charityHub.name}
+            </AppText>
           </AppText>
-        </View>
 
-        {item.phase === 'pending_response' ? (
-          <View style={styles.assignActions}>
-            <Pressable
-              style={[styles.assignDeclineBtn, isActioning && styles.assignBtnDisabled]}
-              disabled={isActioning}
-              onPress={() => void handleAssignmentResponse(item, false)}
-            >
-              <AppText variant="bodyBold" style={styles.assignDeclineText}>
-                {isActioning ? 'Updating…' : 'Decline'}
-              </AppText>
-            </Pressable>
-            <Pressable
-              style={[styles.assignAcceptBtn, isActioning && styles.assignBtnDisabled]}
-              disabled={isActioning}
-              onPress={() => void handleAssignmentResponse(item, true)}
-            >
-              <AppText variant="bodyBold" style={styles.assignAcceptText}>
-                {isActioning ? 'Updating…' : 'Accept'}
-              </AppText>
-            </Pressable>
-          </View>
-        ) : (
-          <SlideToAct
-            label={isActioning ? 'Updating…' : slideLabel(item.phase)}
-            disabled={!isLive || isActioning}
-            onComplete={() => void handleSlideComplete(item)}
-          />
-        )}
+          {item.phase === 'pending_response' ? (
+            <View style={styles.assignActions}>
+              <Pressable
+                style={[styles.assignDeclineBtn, isActioning && styles.assignBtnDisabled]}
+                disabled={isActioning}
+                onPress={() => void handleAssignmentResponse(item, false)}
+              >
+                <AppText variant="bodyBold" style={styles.assignDeclineText}>
+                  {isActioning ? 'Updating…' : 'Decline'}
+                </AppText>
+              </Pressable>
+              <Pressable
+                style={[styles.assignAcceptBtn, isActioning && styles.assignBtnDisabled]}
+                disabled={isActioning}
+                onPress={() => void handleAssignmentResponse(item, true)}
+              >
+                <AppText variant="bodyBold" style={styles.assignAcceptText}>
+                  {isActioning ? 'Updating…' : 'Accept'}
+                </AppText>
+              </Pressable>
+            </View>
+          ) : (
+            <SlideToAct
+              label={isActioning ? 'Updating…' : slideLabel(item.phase)}
+              disabled={!isLive || isActioning}
+              onComplete={() => void handleSlideComplete(item)}
+            />
+          )}
+        </View>
       </View>
     );
   };
@@ -770,7 +750,7 @@ export function DashboardScreen() {
   const showPickupSkeleton = loadingPickups && pickups.length === 0;
 
   return (
-    <Screen scrollable={false} backgroundColor={palette.background} transparentTop>
+    <Screen scrollable={false} backgroundColor={palette.creme} transparentTop>
       <FlatList
         data={sorted}
         keyExtractor={(item) => item.id}
@@ -781,27 +761,28 @@ export function DashboardScreen() {
             {renderHeader()}
             <View style={styles.mainContent}>
               {renderLiveCard()}
-              <AppText variant="h7" style={styles.sectionTitle}>
-                Today&apos;s pickups
-              </AppText>
-              <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
-                {showPickupSkeleton
-                  ? 'Loading pickups…'
-                  : `${sorted.length} job${sorted.length !== 1 ? 's' : ''} assigned to you`}
-              </AppText>
+              <View style={styles.sectionHead}>
+                <AppText variant="h7" style={styles.sectionTitle}>
+                  Today&apos;s pickups
+                </AppText>
+                <AppText variant="caption" style={styles.sectionCount}>
+                  {showPickupSkeleton ? '…' : sorted.length}
+                </AppText>
+              </View>
               {showPickupSkeleton ? <DashboardSkeleton /> : null}
             </View>
           </>
         }
         contentContainerStyle={{ paddingBottom: insets.bottom + hp(3) }}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: hp(1.6) }} />}
+        ItemSeparatorComponent={() => <View style={{ height: hp(1.2) }} />}
         ListEmptyComponent={
           showPickupSkeleton ? null : (
             <View style={styles.empty}>
-              <Ionicons name="checkmark-circle-outline" size={normalize(52)} color={ACCENT_SOFT} />
-              <AppText variant="bodyBold" color={palette.stone}>No pickups right now</AppText>
-              <AppText variant="bodySmall" color={palette.stone} style={{ textAlign: 'center' }}>
+              <AppText variant="label" style={styles.emptyTitle}>
+                No pickups right now
+              </AppText>
+              <AppText variant="bodySmall" style={styles.emptyCopy}>
                 Go live and we&apos;ll notify you when a restaurant needs a collection.
               </AppText>
             </View>
@@ -1009,7 +990,7 @@ export function DashboardScreen() {
                 </View>
                 <View style={styles.tripDestBody}>
                   <AppText variant="caption" color={palette.stone}>
-                    {tripMapConfig.destinationType === 'charity' ? 'Deliver to charity' : 'Collect from restaurant'}
+                    {tripMapConfig.destinationType === 'charity' ? 'Deliver to charity' : 'Collect from'}
                   </AppText>
                   <AppText variant="bodyBold" numberOfLines={1}>{tripMapConfig.destinationLabel}</AppText>
                   <AppText variant="bodySmall" color={palette.stone} numberOfLines={2}>
@@ -1093,14 +1074,13 @@ const styles = StyleSheet.create({
   heroWrap: {
     width: SCREEN_W,
     marginLeft: 0,
-    height: hp(21),
+    height: hp(18),
   },
   heroContent: {
     flex: 1,
     paddingHorizontal: wp(5),
     justifyContent: 'flex-end',
-    paddingBottom: hp(3),
-    gap: hp(1.2),
+    paddingBottom: LIVE_OVERLAP + hp(1.2),
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -1110,101 +1090,55 @@ const styles = StyleSheet.create({
   },
   heroTextBlock: {
     flex: 1,
-    gap: hp(0.3),
+    gap: hp(0.25),
     minWidth: 0,
   },
   heroGreeting: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(255,255,255,0.8)',
     textTransform: 'none',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   heroName: {
     color: palette.white,
     fontSize: normalize(26),
-    lineHeight: normalize(34),
+    lineHeight: normalize(32),
     textTransform: 'none',
   },
   heroOrg: {
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(255,255,255,0.88)',
     textTransform: 'none',
-  },
-  locationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: wp(1.5),
-    paddingVertical: hp(1),
-    paddingHorizontal: wp(3),
-    borderRadius: normalize(20),
-    maxWidth: '100%',
-    marginBottom: -hp(0.5),
-  },
-  locationPillOffline: {
-    backgroundColor: 'rgba(0,0,0,0.28)',
-  },
-  locationPillConnecting: {
-    backgroundColor: 'rgba(0,0,0,0.22)',
-  },
-  locationPillLive: {
-    backgroundColor: 'rgba(59, 126, 82, 0.45)',
-  },
-  locationPillText: {
-    color: palette.white,
-    flexShrink: 1,
-    textTransform: 'none',
-    flex: 1,
-  },
-  locationSkeletonIcon: {
-    backgroundColor: 'rgba(255,255,255,0.35)',
-  },
-  locationSkeletonText: {
-    backgroundColor: 'rgba(255,255,255,0.35)',
-  },
-  logoCircle: {
-    width: normalize(52),
-    height: normalize(52),
-    borderRadius: normalize(26),
-    backgroundColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: palette.black, shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 3 },
-    }),
-  },
-  logoFallback: {
-    color: palette.primary,
-    fontWeight: 'bold',
-    fontSize: normalize(20),
   },
   mainContent: {
     paddingHorizontal: wp(4),
-    marginTop: -hp(1),
-    gap: hp(0.4),
+    marginTop: -LIVE_OVERLAP,
   },
   liveCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: palette.white,
-    borderRadius: normalize(16),
-    padding: wp(4),
-    marginTop: hp(1.6),
-    marginBottom: hp(2),
-    borderWidth: 1.5,
-    borderColor: palette.strokecream,
+    borderRadius: normalize(6),
+    paddingVertical: hp(1.5),
+    paddingHorizontal: wp(3.5),
+    marginBottom: hp(1.8),
+    minHeight: LIVE_OVERLAP * 2,
+    borderWidth: 1,
+    borderColor: palette.creme2,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
-      android: { elevation: 2 },
+      ios: {
+        shadowColor: '#1A1A1B',
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 4 },
     }),
   },
   liveCardOn: {
-    borderColor: ACCENT + '80',
-    backgroundColor: ACCENT_LIGHT,
+    borderColor: ACCENT + '55',
   },
   liveCardConnecting: {
-    borderColor: ACCENT + '50',
-    backgroundColor: '#FAFCFA',
+    borderColor: ACCENT + '40',
   },
   liveLeft: {
     flexDirection: 'row',
@@ -1214,9 +1148,9 @@ const styles = StyleSheet.create({
     paddingRight: wp(2),
   },
   liveIconWrap: {
-    width: normalize(48),
-    height: normalize(48),
-    borderRadius: normalize(24),
+    width: normalize(40),
+    height: normalize(40),
+    borderRadius: normalize(20),
     backgroundColor: ACCENT_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1229,11 +1163,16 @@ const styles = StyleSheet.create({
   },
   liveTextCol: {
     flex: 1,
-    gap: hp(0.25),
+    gap: hp(0.2),
   },
   liveTitle: {
     textTransform: 'none',
     fontSize: normalize(16),
+  },
+  liveSubtitle: {
+    textTransform: 'none',
+    color: palette.stone,
+    lineHeight: normalize(18),
   },
   toggleTrack: {
     width: TOGGLE_TRACK_W,
@@ -1262,30 +1201,44 @@ const styles = StyleSheet.create({
   toggleKnobConnecting: {
     backgroundColor: palette.white,
   },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: hp(1),
+  },
   sectionTitle: {
     textTransform: 'none',
     color: palette.black,
   },
-  sectionSub: {
+  sectionCount: {
+    color: palette.stone,
     textTransform: 'none',
-    marginBottom: hp(1.2),
   },
   card: {
     marginHorizontal: wp(4),
     backgroundColor: palette.white,
-    borderRadius: normalize(16),
-    padding: wp(4.5),
-    gap: hp(1.4),
-    borderWidth: 1,
+    borderRadius: normalize(6),
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: palette.strokecream,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 3 },
-    }),
+    overflow: 'hidden',
+    flexDirection: 'row',
   },
   cardActive: {
     borderColor: ACCENT,
-    borderWidth: 2,
+  },
+  cardAccent: {
+    width: normalize(3),
+    backgroundColor: palette.strokecream,
+  },
+  cardAccentActive: {
+    backgroundColor: ACCENT,
+  },
+  cardBody: {
+    flex: 1,
+    paddingHorizontal: wp(3.5),
+    paddingVertical: hp(1.5),
+    gap: hp(0.9),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1296,67 +1249,72 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: wp(1.5),
-    paddingHorizontal: wp(2.5),
-    paddingVertical: hp(0.5),
-    borderRadius: normalize(8),
+    paddingHorizontal: wp(2),
+    paddingVertical: hp(0.35),
+    borderRadius: normalize(3),
+    backgroundColor: ACCENT_SOFT,
+  },
+  statusText: {
+    color: ACCENT,
   },
   statusDot: {
-    width: normalize(7),
-    height: normalize(7),
-    borderRadius: normalize(3.5),
+    width: normalize(6),
+    height: normalize(6),
+    borderRadius: normalize(3),
   },
   distanceText: {
     textTransform: 'none',
     color: palette.stone,
-    fontSize: normalize(14),
+    letterSpacing: 0.2,
   },
   restaurantTitle: {
     textTransform: 'none',
     color: palette.black,
-    fontSize: normalize(22),
-    lineHeight: normalize(28),
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
+    fontSize: normalize(17),
+    lineHeight: normalize(22),
   },
   addressText: {
-    flex: 1,
     textTransform: 'none',
-    lineHeight: normalize(20),
+    color: palette.stone,
+    lineHeight: normalize(19),
   },
-  infoRow: {
+  metaRow: {
     flexDirection: 'row',
-    gap: wp(2.5),
+    justifyContent: 'space-between',
+    gap: wp(3),
+    paddingTop: hp(0.4),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.strokecream,
   },
-  infoBox: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: wp(2.5),
-    backgroundColor: '#FAFAF8',
-    borderRadius: normalize(12),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.strokecream,
-    padding: wp(3),
-    alignItems: 'flex-start',
-  },
-  infoBoxText: {
+  metaBlock: {
     flex: 1,
     gap: hp(0.15),
   },
-  infoValue: {
-    textTransform: 'none',
-    fontSize: normalize(15),
+  metaBlockRight: {
+    alignItems: 'flex-end',
+    gap: hp(0.15),
   },
-  storageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: wp(2),
-    backgroundColor: ACCENT_LIGHT,
-    paddingHorizontal: wp(3),
-    paddingVertical: hp(1),
-    borderRadius: normalize(10),
+  metaLabel: {
+    color: palette.stone,
+    textTransform: 'none',
+    letterSpacing: 0.2,
+  },
+  metaValue: {
+    textTransform: 'none',
+    color: palette.black,
+  },
+  metaSub: {
+    textTransform: 'none',
+    color: palette.stone,
+  },
+  metaLink: {
+    color: ACCENT,
+    textTransform: 'none',
+    letterSpacing: 0.2,
+  },
+  storageText: {
+    textTransform: 'none',
+    color: palette.stone,
   },
   contactRow: {
     flexDirection: 'row',
@@ -1368,17 +1326,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: wp(1.5),
-    paddingVertical: hp(1.2),
-    borderRadius: normalize(12),
-    borderWidth: 1.5,
-    borderColor: ACCENT + '60',
+    paddingVertical: hp(1),
+    borderRadius: normalize(4),
+    borderWidth: 1,
+    borderColor: palette.creme2,
     backgroundColor: palette.white,
   },
+  contactBtnText: {
+    color: ACCENT,
+    textTransform: 'none',
+  },
   charityNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
-    paddingTop: hp(0.3),
+    textTransform: 'none',
+    color: palette.stone,
+  },
+  charityNoteStrong: {
+    color: palette.black,
+    textTransform: 'none',
   },
   assignActions: {
     flexDirection: 'row',
@@ -1443,10 +1407,20 @@ const styles = StyleSheet.create({
   },
   empty: {
     alignItems: 'center',
-    gap: hp(1.2),
+    gap: hp(0.8),
     paddingVertical: hp(8),
     paddingHorizontal: wp(10),
     marginHorizontal: wp(4),
+  },
+  emptyTitle: {
+    textTransform: 'none',
+    color: palette.black,
+  },
+  emptyCopy: {
+    textAlign: 'center',
+    color: palette.stone,
+    textTransform: 'none',
+    lineHeight: normalize(20),
   },
   foodRow: {
     flexDirection: 'row',

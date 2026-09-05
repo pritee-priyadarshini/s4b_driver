@@ -34,7 +34,7 @@ export const typography = {
   h6: {
     fontFamily: 'Saveful-Bold',
     fontSize: 22,
-    lineHeight: 25,
+    lineHeight: 28,
     textTransform: 'uppercase' as const,
   },
   h7: {
@@ -79,12 +79,12 @@ export const typography = {
   bodySmall: {
     fontFamily: 'Saveful-Regular',
     fontSize: 14,
-    lineHeight: 15,
+    lineHeight: 19,
   },
   label: {
     fontFamily: 'Saveful-SemiBold',
-    fontSize: 16,
-    lineHeight: 18,
+    fontSize: 18,
+    lineHeight: 20,
   },
   caption: {
     fontFamily: 'Saveful-SemiBold',

@@ -18,6 +18,7 @@ import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { AppBottomSheet } from '../components/AppBottomSheet';
 import { HeroHeader } from '../components/HeroHeader';
+import { CharityLogoAvatar } from '../components/CharityLogoAvatar';
 import { Skeleton } from '../components/Skeleton';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { useAuth } from '../store/AuthContext';
@@ -33,9 +34,9 @@ import {
 } from '../navigation/types';
 
 const ACCENT = palette.kale;
-const ACCENT_SOFT = '#D8EBDF';
-const ACCENT_LIGHT = '#F2F8F4';
 const { width: SCREEN_W } = Dimensions.get('window');
+/** Half of the stats strip height — used so the strip straddles the hero edge. */
+const STATS_OVERLAP = normalize(38);
 
 type Props =
   CompositeScreenProps<
@@ -54,9 +55,11 @@ function greeting(): string {
 
 function getCharityHub(driver: AuthDriver | null) {
   const site = driver?.profile?.sites?.[0];
+  const org = driver?.profile?.organisation;
   return {
-    name: site?.name || driver?.profile?.organisation?.name || 'Your charity',
+    name: site?.name || org?.name || 'Your charity',
     address: site?.address || '',
+    logoUrl: org?.logoUrl ?? null,
   };
 }
 
@@ -71,11 +74,22 @@ function statusLabel(status: HistoryItem['status']) {
   return 'Assigned';
 }
 
-function statusColor(status: HistoryItem['status']) {
-  if (status === 'Delivered') return ACCENT;
-  if (status === 'Cancelled') return palette.chilli;
-  if (status === 'Picked') return '#C47B1A';
-  return palette.stone;
+function statusTone(status: HistoryItem['status']) {
+  if (status === 'Delivered') {
+    return { color: ACCENT, bg: 'rgba(58,126,82,0.12)' };
+  }
+  if (status === 'Cancelled') {
+    return { color: palette.chilli, bg: 'rgba(255,98,58,0.12)' };
+  }
+  if (status === 'Picked') {
+    return { color: '#B56A12', bg: 'rgba(196,123,26,0.14)' };
+  }
+  return { color: palette.stone, bg: 'rgba(109,109,114,0.12)' };
+}
+
+function formatRating(value: number) {
+  if (!value || value <= 0) return '—';
+  return `${value}/5`;
 }
 
 export function HistoryScreen({ navigation }: Props) {
@@ -152,148 +166,124 @@ export function HistoryScreen({ navigation }: Props) {
             {charityHub.name}
           </AppText>
         </View>
-        <View style={styles.logoCircle}>
-          <AppText style={styles.logoFallback}>
-            {(charityHub.name[0] || 'S').toUpperCase()}
-          </AppText>
-        </View>
-      </View>
-      <View style={[styles.locationPill, styles.locationPillHistory]}>
-        <Ionicons name="time-outline" size={normalize(14)} color={palette.white} />
-        <AppText variant="caption" style={styles.locationPillText}>
-          Collection history · {pastPickups.length} trips
-        </AppText>
+        <CharityLogoAvatar logoUrl={charityHub.logoUrl} name={charityHub.name} />
       </View>
     </HeroHeader>
   );
 
-  const renderStatsCard = () => (
-    <View style={styles.statsCard}>
-      <View style={styles.statsRow}>
-        <View style={styles.statBox}>
-          <View style={[styles.statIcon, { backgroundColor: ACCENT_SOFT }]}>
-            <Ionicons name="basket-outline" size={normalize(20)} color={ACCENT} />
-          </View>
-          <AppText variant="h7" style={styles.statValue}>{totalKg} kg</AppText>
-          <AppText variant="caption" color={palette.stone} style={styles.statLabel}>
-            Food saved
+  const renderStats = () => (
+    <View style={styles.statsStrip}>
+      <View style={styles.statCell}>
+        <View style={styles.statValueRow}>
+          <AppText variant="h7" style={styles.statValue}>
+            {totalKg}
+          </AppText>
+          <AppText variant="caption" style={styles.statUnit}>
+            kg
           </AppText>
         </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <View style={[styles.statIcon, { backgroundColor: ACCENT_SOFT }]}>
-            <Ionicons name="checkmark-circle-outline" size={normalize(20)} color={ACCENT} />
-          </View>
-          <AppText variant="h7" style={styles.statValue}>{completedCount}</AppText>
-          <AppText variant="caption" color={palette.stone} style={styles.statLabel}>
-            Completed
-          </AppText>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <View style={[styles.statIcon, { backgroundColor: ACCENT_SOFT }]}>
-            <Ionicons name="today-outline" size={normalize(20)} color={ACCENT} />
-          </View>
-          <AppText variant="h7" style={styles.statValue}>{todayOrders}</AppText>
-          <AppText variant="caption" color={palette.stone} style={styles.statLabel}>
-            Today
-          </AppText>
-        </View>
+        <AppText variant="caption" style={styles.statLabel}>
+          Food saved
+        </AppText>
+      </View>
+      <View style={styles.statRule} />
+      <View style={styles.statCell}>
+        <AppText variant="h7" style={styles.statValue}>
+          {completedCount}
+        </AppText>
+        <AppText variant="caption" style={styles.statLabel}>
+          Completed
+        </AppText>
+      </View>
+      <View style={styles.statRule} />
+      <View style={styles.statCell}>
+        <AppText variant="h7" style={styles.statValue}>
+          {todayOrders}
+        </AppText>
+        <AppText variant="caption" style={styles.statLabel}>
+          Today
+        </AppText>
       </View>
     </View>
   );
 
   const renderCard = ({ item }: { item: HistoryItem }) => {
     const qty = itemQty(item.items);
-    const accent = statusColor(item.status);
+    const tone = statusTone(item.status);
 
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.statusBadge, { backgroundColor: ACCENT_SOFT }]}>
-            <View style={[styles.statusDot, { backgroundColor: accent }]} />
-            <AppText variant="caption" style={{ color: accent }}>
-              {statusLabel(item.status)}
-            </AppText>
-          </View>
-          <AppText variant="bodyBold" style={styles.orderIdText}>
-            {item.orderId}
-          </AppText>
-        </View>
+      <Pressable
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+        onPress={() => navigation.navigate('OrderDetails', { order: item })}
+      >
+        <View style={[styles.cardAccent, { backgroundColor: tone.color }]} />
 
-        <AppText variant="h6" style={styles.restaurantTitle}>
-          {item.restaurant.name}
-        </AppText>
-
-        <View style={styles.addressRow}>
-          <Ionicons name="location-outline" size={normalize(18)} color={ACCENT} />
-          <AppText variant="bodySmall" color={palette.stone} style={styles.addressText}>
-            {item.restaurant.address}
-          </AppText>
-        </View>
-
-        <View style={styles.infoRow}>
-          <View style={styles.infoBox}>
-            <Ionicons name="time-outline" size={normalize(20)} color={ACCENT} />
-            <View style={styles.infoBoxText}>
-              <AppText variant="caption" color={palette.stone}>Delivered</AppText>
-              <AppText variant="bodyBold" style={styles.infoValue} numberOfLines={1}>
-                {item.deliveredDate}
-              </AppText>
-              <AppText variant="bodySmall" color={palette.stone}>{item.deliveredTime}</AppText>
-            </View>
-          </View>
-          <Pressable style={styles.infoBox} onPress={() => setFoodModal(item)}>
-            <Ionicons name="basket-outline" size={normalize(20)} color={ACCENT} />
-            <View style={styles.infoBoxText}>
-              <AppText variant="caption" color={palette.stone}>Food collected</AppText>
-              <AppText variant="bodyBold" style={styles.infoValue}>{qty} kg</AppText>
-              <AppText variant="bodySmall" style={{ color: ACCENT }}>
-                {item.items.length} items · View
+        <View style={styles.cardBody}>
+          <View style={styles.cardTop}>
+            <View style={[styles.statusPill, { backgroundColor: tone.bg }]}>
+              <AppText variant="caption" style={{ color: tone.color }}>
+                {statusLabel(item.status)}
               </AppText>
             </View>
-          </Pressable>
-        </View>
-
-        <View style={styles.ratingRow}>
-          <View style={styles.ratingChip}>
-            <Ionicons name="star" size={normalize(14)} color="#E8A317" />
-            <AppText variant="bodySmall" color={palette.stone}>
-              You: <AppText variant="bodyBold">{item.driverRating}/5</AppText>
+            <AppText variant="caption" style={styles.orderId}>
+              {item.orderId}
             </AppText>
           </View>
-          <View style={styles.ratingChip}>
-            <Ionicons name="star" size={normalize(14)} color="#E8A317" />
-            <AppText variant="bodySmall" color={palette.stone}>
-              Food Business: <AppText variant="bodyBold">{item.restaurantRating}/5</AppText>
-            </AppText>
-          </View>
-        </View>
 
-        <View style={styles.charityNote}>
-          <Ionicons name="home-outline" size={normalize(16)} color={palette.stone} />
-          <AppText variant="bodySmall" color={palette.stone} style={{ flex: 1 }}>
-            Delivered to{' '}
-            <AppText variant="bodyBold" style={{ color: palette.black }}>
-              {item.charity.name}
-            </AppText>
+          <AppText variant="label" style={styles.restaurantName} numberOfLines={2}>
+            {item.restaurant.name}
           </AppText>
-        </View>
 
-        <Pressable
-          style={styles.detailsBtn}
-          onPress={() => navigation.navigate('OrderDetails', { order: item })}
-        >
-          <Ionicons name="document-text-outline" size={normalize(18)} color={ACCENT} />
-          <AppText variant="bodyBold" style={{ color: ACCENT }}>View full details</AppText>
-          <Ionicons name="chevron-forward" size={normalize(18)} color={ACCENT} />
-        </Pressable>
-      </View>
+          <View style={styles.routeBlock}>
+            <View style={styles.routeLine}>
+              <View style={[styles.routeDot, styles.routeDotPickup]} />
+              <View style={styles.routeStem} />
+              <View style={[styles.routeDot, styles.routeDotDrop]} />
+            </View>
+            <View style={styles.routeCopy}>
+              <AppText variant="bodySmall" style={styles.routeText} numberOfLines={1}>
+                {item.restaurant.address}
+              </AppText>
+              <AppText variant="bodySmall" style={styles.routeText} numberOfLines={1}>
+                {item.charity.name}
+              </AppText>
+            </View>
+          </View>
+
+          <View style={styles.metaRow}>
+            <AppText variant="bodySmall" style={styles.metaText}>
+              {item.deliveredDate}
+              {item.deliveredTime ? ` · ${item.deliveredTime}` : ''}
+            </AppText>
+            <Pressable
+              hitSlop={8}
+              onPress={() => setFoodModal(item)}
+              style={styles.kgChip}
+            >
+              <AppText variant="bodyBold" style={styles.kgChipText}>
+                {qty} kg
+              </AppText>
+              <AppText variant="caption" style={styles.kgChipSub}>
+                {item.items.length} items
+              </AppText>
+            </Pressable>
+          </View>
+
+          <View style={styles.footerRow}>
+            <AppText variant="caption" style={styles.ratingText}>
+              Charity {formatRating(item.driverRating)}
+              {'  ·  '}
+              Business {formatRating(item.restaurantRating)}
+            </AppText>
+            <Ionicons name="chevron-forward" size={normalize(16)} color={palette.stone} />
+          </View>
+        </View>
+      </Pressable>
     );
   };
 
   return (
-    <Screen scrollable={false} backgroundColor={palette.background} transparentTop>
+    <Screen scrollable={false} backgroundColor={palette.creme} transparentTop>
       <FlatList
         data={pastPickups}
         keyExtractor={(item) => item.id}
@@ -307,20 +297,19 @@ export function HistoryScreen({ navigation }: Props) {
                   <AppText variant="h7" style={styles.sectionTitle}>
                     Recent collections
                   </AppText>
-                  <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
-                    Loading history…
-                  </AppText>
                   <HistorySkeleton />
                 </>
               ) : (
                 <>
-                  {renderStatsCard()}
-                  <AppText variant="h7" style={styles.sectionTitle}>
-                    Recent collections
-                  </AppText>
-                  <AppText variant="bodySmall" color={palette.stone} style={styles.sectionSub}>
-                    {`${pastPickups.length} trip${pastPickups.length !== 1 ? 's' : ''} on record`}
-                  </AppText>
+                  {renderStats()}
+                  <View style={styles.sectionHead}>
+                    <AppText variant="h7" style={styles.sectionTitle}>
+                      Recent collections
+                    </AppText>
+                    <AppText variant="caption" style={styles.sectionCount}>
+                      {pastPickups.length}
+                    </AppText>
+                  </View>
                 </>
               )}
             </View>
@@ -328,14 +317,15 @@ export function HistoryScreen({ navigation }: Props) {
         }
         contentContainerStyle={{ paddingBottom: insets.bottom + hp(3) }}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: hp(1.6) }} />}
+        ItemSeparatorComponent={() => <View style={{ height: hp(1.2) }} />}
         ListEmptyComponent={
           showHistorySkeleton ? null : (
             <View style={styles.empty}>
-              <Ionicons name="time-outline" size={normalize(52)} color={ACCENT_SOFT} />
-              <AppText variant="bodyBold" color={palette.stone}>No collections yet</AppText>
-              <AppText variant="bodySmall" color={palette.stone} style={{ textAlign: 'center' }}>
-                Completed pickups will show up here after you deliver.
+              <AppText variant="label" style={styles.emptyTitle}>
+                No collections yet
+              </AppText>
+              <AppText variant="bodySmall" style={styles.emptyCopy}>
+                Completed pickups will appear here once you finish a delivery.
               </AppText>
             </View>
           )
@@ -350,8 +340,12 @@ export function HistoryScreen({ navigation }: Props) {
       >
         {foodModal?.items.map((food) => (
           <View key={food.name} style={styles.foodRow}>
-            <AppText variant="body" style={{ flex: 1 }}>{food.name}</AppText>
-            <AppText variant="bodyBold" color={palette.stone}>{food.qty} kg</AppText>
+            <AppText variant="body" style={styles.foodName}>
+              {food.name}
+            </AppText>
+            <AppText variant="bodyBold" style={styles.foodQty}>
+              {food.qty} kg
+            </AppText>
           </View>
         ))}
         <View style={styles.foodTotal}>
@@ -368,31 +362,13 @@ export function HistoryScreen({ navigation }: Props) {
 function HistorySkeleton() {
   return (
     <View style={skeletonStyles.wrap}>
-      <View style={skeletonStyles.statsCard}>
-        <View style={skeletonStyles.statsRow}>
-          {[0, 1, 2].map((item) => (
-            <View key={item} style={skeletonStyles.statBox}>
-              <Skeleton width={normalize(40)} height={normalize(40)} borderRadius={normalize(12)} />
-              <Skeleton width={wp(14)} height={normalize(16)} borderRadius={normalize(4)} />
-              <Skeleton width={wp(18)} height={normalize(12)} borderRadius={normalize(4)} />
-            </View>
-          ))}
-        </View>
-      </View>
-
+      <Skeleton width="100%" height={normalize(72)} borderRadius={normalize(4)} />
       {[0, 1, 2].map((item) => (
         <View key={item} style={skeletonStyles.card}>
-          <View style={skeletonStyles.cardTopRow}>
-            <Skeleton width={wp(24)} height={normalize(24)} borderRadius={normalize(8)} />
-            <Skeleton width={wp(20)} height={normalize(14)} borderRadius={normalize(4)} />
-          </View>
-          <Skeleton width="68%" height={normalize(20)} borderRadius={normalize(6)} />
-          <Skeleton width="88%" height={normalize(14)} borderRadius={normalize(4)} />
-          <View style={skeletonStyles.infoRow}>
-            <Skeleton width="48%" height={normalize(64)} borderRadius={normalize(12)} />
-            <Skeleton width="48%" height={normalize(64)} borderRadius={normalize(12)} />
-          </View>
-          <Skeleton width="100%" height={normalize(44)} borderRadius={normalize(12)} />
+          <Skeleton width={wp(28)} height={normalize(18)} borderRadius={normalize(4)} />
+          <Skeleton width="72%" height={normalize(20)} borderRadius={normalize(4)} />
+          <Skeleton width="90%" height={normalize(14)} borderRadius={normalize(4)} />
+          <Skeleton width="60%" height={normalize(14)} borderRadius={normalize(4)} />
         </View>
       ))}
     </View>
@@ -403,14 +379,13 @@ const styles = StyleSheet.create({
   heroWrap: {
     width: SCREEN_W,
     marginLeft: 0,
-    height: hp(20),
+    height: hp(18),
   },
   heroContent: {
     flex: 1,
     paddingHorizontal: wp(5),
     justifyContent: 'flex-end',
-    paddingBottom: hp(3),
-    gap: hp(1.2),
+    paddingBottom: STATS_OVERLAP + hp(1.2),
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -420,229 +395,245 @@ const styles = StyleSheet.create({
   },
   heroTextBlock: {
     flex: 1,
-    gap: hp(0.3),
+    gap: hp(0.25),
     minWidth: 0,
   },
   heroGreeting: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(255,255,255,0.8)',
     textTransform: 'none',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   heroName: {
     color: palette.white,
     fontSize: normalize(26),
-    lineHeight: normalize(34),
+    lineHeight: normalize(32),
     textTransform: 'none',
   },
   heroOrg: {
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(255,255,255,0.88)',
     textTransform: 'none',
-  },
-  locationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: wp(1.5),
-    paddingVertical: hp(0.65),
-    paddingHorizontal: wp(3),
-    borderRadius: normalize(20),
-    maxWidth: '100%',
-  },
-  locationPillHistory: {
-    backgroundColor: 'rgba(0,0,0,0.28)',
-  },
-  locationPillText: {
-    color: palette.white,
-    flexShrink: 1,
-    textTransform: 'none',
-  },
-  logoCircle: {
-    width: normalize(52),
-    height: normalize(52),
-    borderRadius: normalize(26),
-    backgroundColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: palette.black, shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 3 },
-    }),
-  },
-  logoFallback: {
-    color: palette.primary,
-    fontWeight: 'bold',
-    fontSize: normalize(20),
   },
   mainContent: {
     paddingHorizontal: wp(4),
-    marginTop: -hp(1),
-    gap: hp(0.4),
+    marginTop: -STATS_OVERLAP,
   },
-  statsCard: {
+  statsStrip: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
     backgroundColor: palette.white,
-    borderRadius: normalize(16),
-    padding: wp(4),
-    marginBottom: hp(1.5),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ACCENT + '30',
+    borderRadius: normalize(6),
+    borderWidth: 1,
+    borderColor: palette.creme2,
+    minHeight: STATS_OVERLAP * 2,
+    marginBottom: hp(1.8),
     ...Platform.select({
-      ios: { shadowColor: palette.black, shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 2 },
+      ios: {
+        shadowColor: '#1A1A1B',
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 4 },
     }),
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statBox: {
+  statCell: {
     flex: 1,
     alignItems: 'center',
-    gap: hp(0.4),
-  },
-  statIcon: {
-    width: normalize(40),
-    height: normalize(40),
-    borderRadius: normalize(12),
-    alignItems: 'center',
     justifyContent: 'center',
+    gap: hp(0.35),
+    paddingHorizontal: wp(2),
+    paddingVertical: hp(1.4),
+  },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: wp(1),
   },
   statValue: {
     textTransform: 'none',
-    fontSize: normalize(18),
     color: palette.black,
+    fontSize: normalize(22),
+    lineHeight: normalize(26),
+  },
+  statUnit: {
+    color: palette.stone,
+    textTransform: 'none',
+    letterSpacing: 0.2,
   },
   statLabel: {
+    color: palette.stone,
     textTransform: 'none',
-    textAlign: 'center',
+    letterSpacing: 0.2,
   },
-  statDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: hp(5),
-    backgroundColor: palette.strokecream,
+  statRule: {
+    width: 1,
+    backgroundColor: palette.creme2,
+    marginVertical: hp(1.2),
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: hp(1),
   },
   sectionTitle: {
     textTransform: 'none',
-    marginTop: hp(1),
-    marginBottom: hp(0.2),
+    color: palette.black,
   },
-  sectionSub: {
-    marginBottom: hp(1),
+  sectionCount: {
+    color: palette.stone,
     textTransform: 'none',
   },
   card: {
+    flexDirection: 'row',
     backgroundColor: palette.white,
-    borderRadius: normalize(16),
-    padding: wp(4),
     marginHorizontal: wp(4),
-    gap: hp(1.2),
+    borderRadius: normalize(6),
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: palette.strokecream,
-    ...Platform.select({
-      ios: { shadowColor: palette.black, shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 2 },
-    }),
+    overflow: 'hidden',
   },
-  cardHeader: {
+  cardPressed: {
+    opacity: 0.92,
+  },
+  cardAccent: {
+    width: normalize(3),
+  },
+  cardBody: {
+    flex: 1,
+    paddingHorizontal: wp(3.5),
+    paddingVertical: hp(1.5),
+    gap: hp(0.9),
+  },
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: wp(2),
+  },
+  statusPill: {
+    paddingHorizontal: wp(2),
+    paddingVertical: hp(0.35),
+    borderRadius: normalize(3),
+  },
+  orderId: {
+    color: palette.stone,
+    textTransform: 'none',
+    letterSpacing: 0.3,
+  },
+  restaurantName: {
+    textTransform: 'none',
+    color: palette.black,
+    fontSize: normalize(17),
+    lineHeight: normalize(22),
+  },
+  routeBlock: {
+    flexDirection: 'row',
+    gap: wp(2.5),
+  },
+  routeLine: {
+    width: normalize(10),
+    alignItems: 'center',
+    paddingTop: hp(0.35),
+  },
+  routeDot: {
+    width: normalize(7),
+    height: normalize(7),
+    borderRadius: normalize(4),
+    borderWidth: 1.5,
+  },
+  routeDotPickup: {
+    borderColor: ACCENT,
+    backgroundColor: palette.white,
+  },
+  routeDotDrop: {
+    borderColor: palette.primary,
+    backgroundColor: palette.primary,
+  },
+  routeStem: {
+    flex: 1,
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: palette.strokecream,
+    marginVertical: hp(0.35),
+    minHeight: hp(1.6),
+  },
+  routeCopy: {
+    flex: 1,
+    gap: hp(0.85),
+    minWidth: 0,
+  },
+  routeText: {
+    color: palette.stone,
+    textTransform: 'none',
+    lineHeight: normalize(18),
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: wp(3),
+    paddingTop: hp(0.2),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.strokecream,
+  },
+  metaText: {
+    flex: 1,
+    color: palette.stone,
+    textTransform: 'none',
+  },
+  kgChip: {
+    alignItems: 'flex-end',
+  },
+  kgChipText: {
+    color: palette.black,
+    textTransform: 'none',
+  },
+  kgChipSub: {
+    color: ACCENT,
+    textTransform: 'none',
+    letterSpacing: 0.2,
+  },
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: wp(1.5),
-    paddingHorizontal: wp(2.5),
-    paddingVertical: hp(0.45),
-    borderRadius: normalize(8),
-  },
-  statusDot: {
-    width: normalize(7),
-    height: normalize(7),
-    borderRadius: normalize(4),
-  },
-  orderIdText: {
-    textTransform: 'none',
+  ratingText: {
     color: palette.stone,
-    fontSize: normalize(13),
-  },
-  restaurantTitle: {
     textTransform: 'none',
-    fontSize: normalize(20),
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
-  },
-  addressText: {
-    flex: 1,
-    textTransform: 'none',
-    lineHeight: normalize(20),
-  },
-  infoRow: {
-    flexDirection: 'row',
-    gap: wp(2.5),
-  },
-  infoBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
-    backgroundColor: ACCENT_LIGHT,
-    borderRadius: normalize(12),
-    padding: wp(3),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ACCENT + '25',
-  },
-  infoBoxText: {
-    flex: 1,
-    gap: hp(0.15),
-    minWidth: 0,
-  },
-  infoValue: {
-    textTransform: 'none',
-    fontSize: normalize(15),
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    gap: wp(3),
-    flexWrap: 'wrap',
-  },
-  ratingChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: wp(1),
-  },
-  charityNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
-    paddingTop: hp(0.2),
-  },
-  detailsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: wp(1.5),
-    paddingVertical: hp(1.2),
-    borderRadius: normalize(12),
-    borderWidth: 1.5,
-    borderColor: ACCENT + '60',
-    backgroundColor: palette.white,
-    marginTop: hp(0.3),
+    letterSpacing: 0.2,
   },
   empty: {
     alignItems: 'center',
-    gap: hp(1.2),
+    gap: hp(0.8),
     paddingVertical: hp(8),
     paddingHorizontal: wp(10),
     marginHorizontal: wp(4),
   },
+  emptyTitle: {
+    textTransform: 'none',
+    color: palette.black,
+  },
+  emptyCopy: {
+    textAlign: 'center',
+    color: palette.stone,
+    textTransform: 'none',
+    lineHeight: normalize(20),
+  },
   foodRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: hp(1),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.strokecream,
+  },
+  foodName: {
+    flex: 1,
+    textTransform: 'none',
+  },
+  foodQty: {
+    color: palette.stone,
+    textTransform: 'none',
   },
   foodTotal: {
     flexDirection: 'row',
@@ -656,41 +647,15 @@ const styles = StyleSheet.create({
 
 const skeletonStyles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: wp(4),
-    gap: hp(1.6),
-  },
-  statsCard: {
-    backgroundColor: palette.white,
-    borderRadius: normalize(16),
-    padding: wp(4),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.strokecream,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statBox: {
-    flex: 1,
-    alignItems: 'center',
-    gap: hp(0.5),
+    gap: hp(1.2),
+    marginBottom: hp(1),
   },
   card: {
     backgroundColor: palette.white,
-    borderRadius: normalize(16),
+    borderRadius: normalize(4),
     padding: wp(4),
-    gap: hp(1.2),
+    gap: hp(1),
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: palette.strokecream,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: wp(2.5),
   },
 });

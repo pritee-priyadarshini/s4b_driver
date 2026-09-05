@@ -5,7 +5,6 @@ import {
   ScrollView,
   Pressable,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,8 +21,6 @@ import { RootStackParamList } from '../navigation/types';
 import { OrderStatus } from '../types/history';
 
 const ACCENT = palette.kale;
-const ACCENT_SOFT = '#D8EBDF';
-const ACCENT_LIGHT = '#F2F8F4';
 const { width: SCREEN_W } = Dimensions.get('window');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
@@ -35,11 +32,22 @@ function statusLabel(status: OrderStatus) {
   return 'Assigned';
 }
 
-function statusColor(status: OrderStatus) {
-  if (status === 'Delivered') return ACCENT;
-  if (status === 'Picked') return '#C47B1A';
-  if (status === 'Cancelled') return palette.chilli;
-  return palette.stone;
+function statusTone(status: OrderStatus) {
+  if (status === 'Delivered') {
+    return { color: ACCENT, bg: 'rgba(58,126,82,0.12)' };
+  }
+  if (status === 'Cancelled') {
+    return { color: palette.chilli, bg: 'rgba(255,98,58,0.12)' };
+  }
+  if (status === 'Picked') {
+    return { color: '#B56A12', bg: 'rgba(196,123,26,0.14)' };
+  }
+  return { color: palette.stone, bg: 'rgba(109,109,114,0.12)' };
+}
+
+function formatRating(value: number) {
+  if (!value || value <= 0) return null;
+  return value;
 }
 
 function StarRating({ rating }: { rating: number }) {
@@ -49,8 +57,8 @@ function StarRating({ rating }: { rating: number }) {
         <Ionicons
           key={star}
           name={star <= rating ? 'star' : 'star-outline'}
-          size={normalize(18)}
-          color="#E8A317"
+          size={normalize(15)}
+          color={star <= rating ? '#C9962A' : palette.strokecream}
         />
       ))}
     </View>
@@ -67,40 +75,57 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
     [order.items],
   );
 
-  const accent = statusColor(order.status);
+  const tone = statusTone(order.status);
+  const charityRating = formatRating(order.driverRating);
+  const businessRating = formatRating(order.restaurantRating);
 
   return (
-    <Screen scrollable={false} backgroundColor={palette.background} transparentTop>
+    <Screen scrollable={false} backgroundColor={palette.creme} transparentTop>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + hp(3) }}
       >
         <HeroHeader
           source={require('../../assets/placeholder/kale-header.png')}
-          height={hp(20)}
+          height={hp(22)}
           style={styles.heroWrap}
           contentStyle={styles.heroContent}
         >
           <StatusBar style="light" translucent backgroundColor="transparent" />
 
-          <Pressable
-            style={styles.backBtn}
-            onPress={() => navigation.goBack()}
-            hitSlop={12}
-          >
-            <Ionicons name="arrow-back" size={normalize(22)} color={palette.white} />
-          </Pressable>
+          <View style={styles.heroTopBar}>
+            <Pressable
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              hitSlop={12}
+            >
+              <Ionicons name="arrow-back" size={normalize(20)} color={palette.white} />
+            </Pressable>
+            <AppText variant="caption" style={styles.heroTopLabel}>
+              Trip details
+            </AppText>
+            <View style={styles.heroTopSpacer} />
+          </View>
 
           <View style={styles.heroBody}>
-            <AppText variant="caption" style={styles.heroEyebrow}>
-              Order details
+            <AppText variant="h6" style={styles.heroTitle} numberOfLines={2}>
+              {order.restaurant.name}
             </AppText>
-            <AppText variant="h6" style={styles.heroTitle}>
-              {order.orderId}
+            <AppText variant="bodySmall" style={styles.heroRoute} numberOfLines={1}>
+              Delivered to {order.charity.name}
             </AppText>
-            <View style={[styles.heroPill, { backgroundColor: 'rgba(0,0,0,0.28)' }]}>
-              <View style={[styles.statusDot, { backgroundColor: accent }]} />
-              <AppText variant="caption" style={styles.heroPillText}>
+            <View style={styles.heroMetaRow}>
+              <AppText variant="caption" style={styles.heroMeta}>
+                {order.orderId}
+              </AppText>
+              <View style={styles.heroMetaDot} />
+              <AppText variant="caption" style={styles.heroMeta}>
+                {totalQty} kg · {order.items.length} items
+              </AppText>
+            </View>
+            <View style={styles.heroStatus}>
+              <View style={[styles.heroStatusDot, { backgroundColor: tone.color }]} />
+              <AppText variant="caption" style={styles.heroStatusText}>
                 {statusLabel(order.status)}
               </AppText>
             </View>
@@ -108,135 +133,158 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
         </HeroHeader>
 
         <View style={styles.mainContent}>
-          <View style={styles.card}>
-            <AppText variant="h7" style={styles.sectionTitle}>
-              Trip timeline
+          <View style={styles.panel}>
+            <AppText variant="caption" style={styles.panelLabel}>
+              Timeline
             </AppText>
-            <View style={styles.infoRow}>
-              <View style={styles.infoBox}>
-                <Ionicons name="calendar-outline" size={normalize(20)} color={ACCENT} />
-                <View style={styles.infoBoxText}>
-                  <AppText variant="caption" color={palette.stone}>Assigned</AppText>
-                  <AppText variant="bodyBold" style={styles.infoValue} numberOfLines={1}>
+
+            <View style={styles.timeline}>
+              <View style={styles.timelineItem}>
+                <View style={styles.timelineRail}>
+                  <View style={[styles.timelineDot, styles.timelineDotMuted]} />
+                  <View style={styles.timelineStem} />
+                </View>
+                <View style={styles.timelineCopy}>
+                  <AppText variant="caption" style={styles.timelineRole}>
+                    Assigned
+                  </AppText>
+                  <AppText variant="bodyBold" style={styles.timelinePrimary}>
                     {order.assignedDate}
                   </AppText>
-                  <AppText variant="bodySmall" color={palette.stone}>{order.assignedTime}</AppText>
+                  <AppText variant="bodySmall" style={styles.timelineSecondary}>
+                    {order.assignedTime}
+                  </AppText>
                 </View>
               </View>
-              <View style={styles.infoBox}>
-                <Ionicons name="checkmark-circle-outline" size={normalize(20)} color={ACCENT} />
-                <View style={styles.infoBoxText}>
-                  <AppText variant="caption" color={palette.stone}>Delivered</AppText>
-                  <AppText variant="bodyBold" style={styles.infoValue} numberOfLines={1}>
+
+              <View style={styles.timelineItem}>
+                <View style={styles.timelineRail}>
+                  <View style={[styles.timelineDot, styles.timelineDotActive]} />
+                </View>
+                <View style={styles.timelineCopy}>
+                  <AppText variant="caption" style={styles.timelineRole}>
+                    Delivered
+                  </AppText>
+                  <AppText variant="bodyBold" style={styles.timelinePrimary}>
                     {order.deliveredDate}
                   </AppText>
-                  <AppText variant="bodySmall" color={palette.stone}>{order.deliveredTime}</AppText>
+                  <AppText variant="bodySmall" style={styles.timelineSecondary}>
+                    {order.deliveredTime}
+                  </AppText>
                 </View>
               </View>
             </View>
           </View>
 
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.statusBadge, { backgroundColor: ACCENT_SOFT }]}>
-                <Ionicons name="restaurant-outline" size={normalize(14)} color={ACCENT} />
-                <AppText variant="caption" style={{ color: ACCENT }}>Pickup</AppText>
-              </View>
-            </View>
-
-            <AppText variant="h6" style={styles.restaurantTitle}>
-              {order.restaurant.name}
+          <View style={styles.panel}>
+            <AppText variant="caption" style={styles.panelLabel}>
+              Route
             </AppText>
 
-            <View style={styles.addressRow}>
-              <Ionicons name="location-outline" size={normalize(18)} color={ACCENT} />
-              <AppText variant="bodySmall" color={palette.stone} style={styles.addressText}>
-                {order.restaurant.address}
-              </AppText>
-            </View>
+            <View style={styles.routeBlock}>
+              <View style={styles.routeRail}>
+                <View style={[styles.routeDot, styles.routeDotPickup]} />
+                <View style={styles.routeStem} />
+                <View style={[styles.routeDot, styles.routeDotDrop]} />
+              </View>
 
-            <View style={styles.itemsSection}>
-              <AppText variant="bodyBold" style={styles.itemsTitle}>
+              <View style={styles.routeCopy}>
+                <View style={styles.routeStop}>
+                  <AppText variant="caption" style={styles.routeRole}>
+                    Pickup
+                  </AppText>
+                  <AppText variant="label" style={styles.routeName}>
+                    {order.restaurant.name}
+                  </AppText>
+                  <AppText variant="bodySmall" style={styles.routeAddress}>
+                    {order.restaurant.address}
+                  </AppText>
+                </View>
+
+                <View style={styles.routeStop}>
+                  <AppText variant="caption" style={styles.routeRole}>
+                    Delivery
+                  </AppText>
+                  <AppText variant="label" style={styles.routeName}>
+                    {order.charity.name}
+                  </AppText>
+                  <AppText variant="bodySmall" style={styles.routeAddress}>
+                    {order.charity.address}
+                  </AppText>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.panel}>
+            <View style={styles.itemsHead}>
+              <AppText variant="caption" style={styles.panelLabel}>
                 Food collected
               </AppText>
-              <AppText variant="bodySmall" color={palette.stone} style={styles.itemsSub}>
-                {order.items.length} items · {totalQty} kg total
-              </AppText>
-
-              {order.items.map((item) => (
-                <View key={item.name} style={styles.foodRow}>
-                  <AppText variant="body" style={{ flex: 1 }}>{item.name}</AppText>
-                  <AppText variant="bodyBold" color={palette.stone}>{item.qty} kg</AppText>
-                </View>
-              ))}
-
-              <View style={styles.foodTotal}>
-                <AppText variant="bodyBold">Total</AppText>
-                <AppText variant="bodyBold" style={{ color: ACCENT }}>{totalQty} kg</AppText>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.statusBadge, { backgroundColor: ACCENT_SOFT }]}>
-                <Ionicons name="home-outline" size={normalize(14)} color={ACCENT} />
-                <AppText variant="caption" style={{ color: ACCENT }}>Delivery</AppText>
-              </View>
-            </View>
-
-            <AppText variant="h6" style={styles.restaurantTitle}>
-              {order.charity.name}
-            </AppText>
-
-            <View style={styles.addressRow}>
-              <Ionicons name="location-outline" size={normalize(18)} color={ACCENT} />
-              <AppText variant="bodySmall" color={palette.stone} style={styles.addressText}>
-                {order.charity.address}
+              <AppText variant="bodyBold" style={styles.itemsTotal}>
+                {totalQty} kg
               </AppText>
             </View>
 
-            <View style={styles.charityNote}>
-              <Ionicons name="heart-outline" size={normalize(16)} color={ACCENT} />
-              <AppText variant="bodySmall" color={palette.stone} style={{ flex: 1 }}>
-                This collection was delivered to the charity hub above.
-              </AppText>
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <AppText variant="h7" style={styles.sectionTitle}>
-              Collection feedback
-            </AppText>
-
-            <View style={styles.feedbackBox}>
-              <View style={styles.feedbackRow}>
-                <View style={[styles.feedbackIcon, { backgroundColor: ACCENT_SOFT }]}>
-                  <Ionicons name="person-outline" size={normalize(18)} color={ACCENT} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <AppText variant="caption" color={palette.stone}>Your experience</AppText>
-                  <StarRating rating={order.driverRating} />
-                </View>
-                <AppText variant="bodyBold" style={styles.ratingScore}>
-                  {order.driverRating}/5
+            {order.items.map((item, index) => (
+              <View
+                key={`${item.name}-${index}`}
+                style={[
+                  styles.foodRow,
+                  index === order.items.length - 1 && styles.foodRowLast,
+                ]}
+              >
+                <AppText variant="body" style={styles.foodName}>
+                  {item.name}
+                </AppText>
+                <AppText variant="bodyBold" style={styles.foodQty}>
+                  {item.qty} kg
                 </AppText>
               </View>
+            ))}
+          </View>
 
-              <View style={styles.feedbackDivider} />
+          <View style={styles.panel}>
+            <AppText variant="caption" style={styles.panelLabel}>
+              Feedback
+            </AppText>
 
-              <View style={styles.feedbackRow}>
-                <View style={[styles.feedbackIcon, { backgroundColor: ACCENT_SOFT }]}>
-                  <Ionicons name="restaurant-outline" size={normalize(18)} color={ACCENT} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <AppText variant="caption" color={palette.stone}>Food Business experience</AppText>
-                  <StarRating rating={order.restaurantRating} />
-                </View>
-                <AppText variant="bodyBold" style={styles.ratingScore}>
-                  {order.restaurantRating}/5
+            <View style={styles.feedbackRow}>
+              <View style={styles.feedbackCopy}>
+                <AppText variant="bodyBold" style={styles.feedbackTitle}>
+                  Charity
                 </AppText>
+                {charityRating != null ? (
+                  <StarRating rating={charityRating} />
+                ) : (
+                  <AppText variant="bodySmall" style={styles.feedbackEmpty}>
+                    Not rated yet
+                  </AppText>
+                )}
               </View>
+              <AppText variant="h7" style={styles.feedbackScore}>
+                {charityRating != null ? `${charityRating}/5` : '—'}
+              </AppText>
+            </View>
+
+            <View style={styles.feedbackDivider} />
+
+            <View style={styles.feedbackRow}>
+              <View style={styles.feedbackCopy}>
+                <AppText variant="bodyBold" style={styles.feedbackTitle}>
+                  Food business
+                </AppText>
+                {businessRating != null ? (
+                  <StarRating rating={businessRating} />
+                ) : (
+                  <AppText variant="bodySmall" style={styles.feedbackEmpty}>
+                    Not rated yet
+                  </AppText>
+                )}
+              </View>
+              <AppText variant="h7" style={styles.feedbackScore}>
+                {businessRating != null ? `${businessRating}/5` : '—'}
+              </AppText>
             </View>
           </View>
         </View>
@@ -249,199 +297,276 @@ const styles = StyleSheet.create({
   heroWrap: {
     width: SCREEN_W,
     marginLeft: 0,
-    height: hp(22),
+    height: hp(24),
   },
   heroContent: {
     flex: 1,
     paddingHorizontal: wp(5),
-    justifyContent: 'flex-end',
-    paddingBottom: hp(3),
+    justifyContent: 'space-between',
+    paddingBottom: hp(3.5),
+  },
+  heroTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: hp(0.6),
   },
   backBtn: {
-    position: 'absolute',
-    left: wp(5),
-    top: hp(5),
-    width: normalize(40),
-    height: normalize(40),
-    borderRadius: normalize(20),
+    width: normalize(36),
+    height: normalize(36),
+    borderRadius: normalize(18),
     backgroundColor: 'rgba(0,0,0,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
+  },
+  heroTopLabel: {
+    flex: 1,
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.9)',
+    textTransform: 'none',
+    letterSpacing: 0.4,
+  },
+  heroTopSpacer: {
+    width: normalize(36),
   },
   heroBody: {
-    gap: hp(0.6),
-    paddingTop: hp(4),
-  },
-  heroEyebrow: {
-    color: 'rgba(255,255,255,0.85)',
-    textTransform: 'none',
-    letterSpacing: 0.3,
+    gap: hp(0.45),
   },
   heroTitle: {
     color: palette.white,
-    fontSize: normalize(26),
-    lineHeight: normalize(34),
+    fontSize: normalize(22),
+    lineHeight: normalize(28),
     textTransform: 'none',
   },
-  heroPill: {
+  heroRoute: {
+    color: 'rgba(255,255,255,0.88)',
+    textTransform: 'none',
+    lineHeight: normalize(19),
+  },
+  heroMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    flexWrap: 'wrap',
     gap: wp(1.5),
-    paddingVertical: hp(0.65),
-    paddingHorizontal: wp(3),
-    borderRadius: normalize(20),
+    marginTop: hp(0.15),
   },
-  heroPillText: {
-    color: palette.white,
+  heroMeta: {
+    color: 'rgba(255,255,255,0.78)',
     textTransform: 'none',
+    letterSpacing: 0.3,
   },
-  statusDot: {
-    width: normalize(7),
-    height: normalize(7),
-    borderRadius: normalize(4),
+  heroMetaDot: {
+    width: normalize(3),
+    height: normalize(3),
+    borderRadius: normalize(2),
+    backgroundColor: 'rgba(255,255,255,0.55)',
+  },
+  heroStatus: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(1.5),
+    paddingHorizontal: wp(2.4),
+    paddingVertical: hp(0.45),
+    borderRadius: normalize(3),
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    marginTop: hp(0.35),
+  },
+  heroStatusDot: {
+    width: normalize(6),
+    height: normalize(6),
+    borderRadius: normalize(3),
+  },
+  heroStatusText: {
+    color: palette.black,
+    textTransform: 'none',
+    letterSpacing: 0.3,
   },
   mainContent: {
     paddingHorizontal: wp(4),
-    marginTop: -hp(1),
-    gap: hp(1.6),
+    marginTop: -hp(1.6),
+    gap: hp(1.4),
   },
-  card: {
+  panel: {
     backgroundColor: palette.white,
-    borderRadius: normalize(16),
-    padding: wp(4),
-    gap: hp(1.2),
+    borderRadius: normalize(4),
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: palette.strokecream,
-    ...Platform.select({
-      ios: { shadowColor: palette.black, shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-      android: { elevation: 2 },
-    }),
+    paddingHorizontal: wp(4),
+    paddingTop: hp(1.6),
+    paddingBottom: hp(1.8),
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: wp(1.5),
-    paddingHorizontal: wp(2.5),
-    paddingVertical: hp(0.45),
-    borderRadius: normalize(8),
-  },
-  sectionTitle: {
+  panelLabel: {
+    color: palette.stone,
     textTransform: 'none',
-    marginBottom: hp(0.2),
+    letterSpacing: 0.5,
+    marginBottom: hp(1.2),
   },
-  infoRow: {
+  timeline: {
+    gap: 0,
+  },
+  timelineItem: {
     flexDirection: 'row',
-    gap: wp(2.5),
+    gap: wp(3),
   },
-  infoBox: {
+  timelineRail: {
+    width: normalize(12),
+    alignItems: 'center',
+  },
+  timelineDot: {
+    width: normalize(9),
+    height: normalize(9),
+    borderRadius: normalize(5),
+    marginTop: hp(0.2),
+  },
+  timelineDotMuted: {
+    backgroundColor: palette.white,
+    borderWidth: 1.5,
+    borderColor: palette.stone,
+  },
+  timelineDotActive: {
+    backgroundColor: ACCENT,
+    borderWidth: 0,
+  },
+  timelineStem: {
     flex: 1,
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: palette.strokecream,
+    marginVertical: hp(0.4),
+    minHeight: hp(2.8),
+  },
+  timelineCopy: {
+    flex: 1,
+    paddingBottom: hp(1.6),
+    gap: hp(0.2),
+  },
+  timelineRole: {
+    color: palette.stone,
+    textTransform: 'none',
+    letterSpacing: 0.3,
+  },
+  timelinePrimary: {
+    textTransform: 'none',
+    color: palette.black,
+    fontSize: normalize(16),
+  },
+  timelineSecondary: {
+    color: palette.stone,
+    textTransform: 'none',
+  },
+  routeBlock: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
-    backgroundColor: ACCENT_LIGHT,
-    borderRadius: normalize(12),
-    padding: wp(3),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ACCENT + '25',
+    gap: wp(3),
   },
-  infoBoxText: {
+  routeRail: {
+    width: normalize(12),
+    alignItems: 'center',
+    paddingTop: hp(0.55),
+  },
+  routeDot: {
+    width: normalize(9),
+    height: normalize(9),
+    borderRadius: normalize(5),
+    borderWidth: 1.5,
+  },
+  routeDotPickup: {
+    borderColor: ACCENT,
+    backgroundColor: palette.white,
+  },
+  routeDotDrop: {
+    borderColor: palette.primary,
+    backgroundColor: palette.primary,
+  },
+  routeStem: {
     flex: 1,
-    gap: hp(0.15),
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: palette.strokecream,
+    marginVertical: hp(0.45),
+    minHeight: hp(4),
+  },
+  routeCopy: {
+    flex: 1,
+    gap: hp(2),
     minWidth: 0,
   },
-  infoValue: {
-    textTransform: 'none',
-    fontSize: normalize(15),
+  routeStop: {
+    gap: hp(0.25),
   },
-  restaurantTitle: {
+  routeRole: {
+    color: palette.stone,
     textTransform: 'none',
-    fontSize: normalize(20),
+    letterSpacing: 0.3,
   },
-  addressRow: {
+  routeName: {
+    textTransform: 'none',
+    color: palette.black,
+    fontSize: normalize(16),
+    lineHeight: normalize(21),
+  },
+  routeAddress: {
+    color: palette.stone,
+    textTransform: 'none',
+    lineHeight: normalize(19),
+  },
+  itemsHead: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: hp(0.4),
   },
-  addressText: {
-    flex: 1,
+  itemsTotal: {
     textTransform: 'none',
-    lineHeight: normalize(20),
-  },
-  itemsSection: {
-    backgroundColor: ACCENT_LIGHT,
-    borderRadius: normalize(12),
-    padding: wp(3.5),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ACCENT + '25',
-    gap: hp(0.4),
-  },
-  itemsTitle: {
-    textTransform: 'none',
-  },
-  itemsSub: {
-    textTransform: 'none',
-    marginBottom: hp(0.6),
+    color: ACCENT,
   },
   foodRow: {
     flexDirection: 'row',
-    paddingVertical: hp(0.9),
+    alignItems: 'center',
+    paddingVertical: hp(1.1),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.strokecream,
   },
-  foodTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: hp(0.8),
-    paddingTop: hp(1),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.strokecream,
+  foodRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
   },
-  charityNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: wp(2),
-    backgroundColor: ACCENT_LIGHT,
-    borderRadius: normalize(10),
-    padding: wp(3),
-    marginTop: hp(0.3),
+  foodName: {
+    flex: 1,
+    textTransform: 'none',
+    paddingRight: wp(3),
   },
-  feedbackBox: {
-    backgroundColor: ACCENT_LIGHT,
-    borderRadius: normalize(12),
-    padding: wp(3.5),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ACCENT + '25',
-    gap: hp(1.2),
+  foodQty: {
+    color: palette.black,
+    textTransform: 'none',
   },
   feedbackRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: wp(3),
   },
-  feedbackIcon: {
-    width: normalize(40),
-    height: normalize(40),
-    borderRadius: normalize(12),
-    alignItems: 'center',
-    justifyContent: 'center',
+  feedbackCopy: {
+    flex: 1,
+    gap: hp(0.45),
+  },
+  feedbackTitle: {
+    textTransform: 'none',
+    color: palette.black,
+  },
+  feedbackEmpty: {
+    color: palette.stone,
+    textTransform: 'none',
+  },
+  feedbackScore: {
+    textTransform: 'none',
+    color: palette.black,
+    fontSize: normalize(20),
   },
   feedbackDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: palette.strokecream,
+    marginVertical: hp(1.4),
   },
   starRow: {
     flexDirection: 'row',
-    gap: wp(0.5),
-    marginTop: hp(0.4),
-  },
-  ratingScore: {
-    textTransform: 'none',
-    color: palette.black,
+    gap: wp(0.6),
   },
 });

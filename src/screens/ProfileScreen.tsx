@@ -15,6 +15,7 @@ import { Screen } from '../components/Screen';
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { Card } from '../components/Card';
+import { CharityLogoAvatar } from '../components/CharityLogoAvatar';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../store/AuthContext';
 import { useSubmitLock } from '../hooks/useSubmitLock';
@@ -232,6 +233,11 @@ export function ProfileScreen() {
 
   const displayName = `${formData.firstName} ${formData.lastName}`.trim() || 'Driver';
   const sinceLabel = driver ? formatSinceDate(driver) : 'Saveful for Business';
+  const charityLogoUrl = driver?.profile.organisation?.logoUrl ?? null;
+  const charityName =
+    driver?.profile.organisation?.name ??
+    formData.organisationName ??
+    displayName;
 
   if (loading && !driver) {
     return (
@@ -243,8 +249,9 @@ export function ProfileScreen() {
 
   return (
     <Screen scrollable={false} backgroundColor={palette.creme} transparentTop>
+      <StatusBar style="light" />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: spacing.lg }}
+        contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -252,8 +259,8 @@ export function ProfileScreen() {
           <Image
             source={require('../../assets/placeholder/feed-bg.png')}
             style={styles.headerBg}
+            resizeMode="cover"
           />
-          <StatusBar style="light" />
 
           <View style={styles.headerContent}>
             <View style={styles.headerTextBlock}>
@@ -266,10 +273,13 @@ export function ProfileScreen() {
               </AppText>
             </View>
 
-            <View style={styles.profileCircle}>
-              <AppText variant="h5">
-                {formData.firstName?.charAt(0)?.toUpperCase() || 'D'}
-              </AppText>
+            <View style={styles.profileCircleWrap}>
+              <CharityLogoAvatar
+                logoUrl={charityLogoUrl}
+                name={charityName}
+                size={48}
+                style={styles.profileCircle}
+              />
             </View>
           </View>
 
@@ -278,38 +288,36 @@ export function ProfileScreen() {
               <View style={styles.refreshingDot} />
             </View>
           ) : null}
-
-          <View style={styles.helpOverlay}>
-            <Card style={styles.helpCard}>
-              <AppText variant="body" style={{ textAlign: 'center' }}>
-                Need a hand?
-              </AppText>
-
-              <View style={styles.centerDivider} />
-
-              <AppText variant="bodySmall">
-                We're here to help! If you need a hand with anything in the app,
-                or have any questions feel free to reach out and we'll help out.
-              </AppText>
-
-              <Pressable
-                style={styles.supportBtn}
-                onPress={() => openLink('https://www.saveful.com/contact')}
-              >
-                <AppText variant="label">Contact Support</AppText>
-              </Pressable>
-            </Card>
-          </View>
         </View>
 
-        <View style={styles.content}>
+        <View style={styles.scroll}>
+          <Card style={styles.card}>
+            <AppText variant="body" style={{ textAlign: 'center' }}>
+              Need a hand?
+            </AppText>
+
+            <View style={styles.centerDivider} />
+
+            <AppText variant="bodySmall">
+              We're here to help! If you need a hand with anything in the app,
+              or have any questions feel free to reach out and we'll help out.
+            </AppText>
+
+            <Pressable
+              style={styles.supportBtn}
+              onPress={() => openLink('https://www.saveful.com/contact')}
+            >
+              <AppText variant="label">Contact Support</AppText>
+            </Pressable>
+          </Card>
+
           {(['personal', 'contact', 'notifications', 'driver'] as SectionKey[]).map((key) => (
             <View key={key}>
               <Pressable
                 style={styles.accordionHeader}
                 onPress={() => toggle(key)}
               >
-                <AppText variant="bodyLarge">
+                <AppText variant="label">
                   {key === 'personal'
                     ? 'Personal Details'
                     : key === 'contact'
@@ -444,7 +452,7 @@ export function ProfileScreen() {
               style={styles.linkRow}
               onPress={() => openLink(item.url)}
             >
-              <AppText variant="bodyLarge">{item.label}</AppText>
+              <AppText variant="body">{item.label}</AppText>
               <Ionicons name="open-outline" size={18} />
             </Pressable>
           ))}
@@ -486,32 +494,44 @@ function ProfileSkeleton() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    padding: spacing.xl,
+  },
+
   header: {
     height: hp(25),
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
+
   headerBg: {
     width: '100%',
     height: '100%',
   },
+
   headerContent: {
-    position: 'absolute',
-    top: hp(5),
-    left: spacing.md,
-    right: spacing.md,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    marginTop: -(hp(25) - spacing.xl),
+    zIndex: 1,
     gap: spacing.sm,
   },
+
   headerTextBlock: {
     flex: 1,
     minWidth: 0,
   },
+
   refreshingBadge: {
     position: 'absolute',
-    top: 20,
-    right: spacing.md,
+    top: spacing.lg,
+    right: spacing.lg,
   },
+
   refreshingDot: {
     width: 10,
     height: 10,
@@ -519,65 +539,63 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     opacity: 0.85,
   },
-  helpOverlay: {
-    position: 'absolute',
-    bottom: -70,
-    left: spacing.xl,
-    right: spacing.xl,
+
+  scroll: {
+    paddingTop: hp(10),
+    paddingBottom: spacing.xl,
   },
-  helpCard: {
-    padding: spacing.xl,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.white,
-    gap: spacing.sm,
+
+  card: {
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderRadius: normalize(8),
+    backgroundColor: palette.creme,
+    elevation: 4,
   },
+
   centerDivider: {
     width: '96%',
     height: 1,
     backgroundColor: palette.border,
   },
 
-  content: {
-    marginTop: 80,
-    padding: spacing.md,
-    marginHorizontal: spacing.sm,
+  white: {
+    color: 'white',
   },
 
-  profileCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: palette.radish,
-    alignItems: 'center',
-    justifyContent: 'center',
+  profileCircleWrap: {
+    width: 48,
+    height: 48,
     flexShrink: 0,
   },
 
-  white: {
-    color: palette.white,
+  profileCircle: {
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
   },
 
   accordionHeader: {
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderBottomWidth: 0.5,
-    borderColor: palette.border,
+    borderColor: palette.white,
   },
 
   accordionContent: {
-    padding: spacing.sm,
+    marginHorizontal: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
     backgroundColor: palette.white,
-    borderRadius: 12,
+    borderRadius: normalize(10),
   },
 
   passwordButton: {
     marginTop: spacing.xs,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 14,
+    borderRadius: normalize(14),
     backgroundColor: palette.white,
     padding: spacing.md,
     flexDirection: 'row',
@@ -592,34 +610,35 @@ const styles = StyleSheet.create({
   },
 
   saveBtn: {
-    marginTop: spacing.sm,
     backgroundColor: palette.primary,
     padding: spacing.md,
-    borderRadius: 10,
+    borderRadius: normalize(12),
     alignItems: 'center',
+    marginTop: spacing.xs,
   },
 
   linkRow: {
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderBottomWidth: 0.5,
-    borderColor: palette.border,
+    borderColor: palette.white,
   },
 
   actionBtn: {
     marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
+    marginBottom: spacing.md,
     padding: spacing.md,
-    borderRadius: 6,
+    borderRadius: normalize(6),
     borderWidth: 1,
     alignItems: 'center',
   },
 
   supportBtn: {
     borderWidth: 1,
+    borderRadius: normalize(12),
     padding: spacing.sm,
-    borderRadius: 10,
     alignItems: 'center',
   },
 

@@ -24,16 +24,15 @@ const iosGoogleServicesFile = resolveGoogleServicesFile(
 
 function shouldIncludeFirebasePlugins() {
   const platform = process.env.EAS_BUILD_PLATFORM;
-
-  // Android-only for now — iOS push not configured yet.
-  if (platform === 'ios') return false;
   if (platform === 'android') return Boolean(androidGoogleServicesFile);
-
-  return Boolean(androidGoogleServicesFile);
+  if (platform === 'ios') return Boolean(iosGoogleServicesFile);
+  // Local / Expo config evaluation — enable if either platform config is present.
+  return Boolean(androidGoogleServicesFile || iosGoogleServicesFile);
 }
 
 const includeFirebase = shouldIncludeFirebasePlugins();
 
+// Fail EAS Android builds early if Firebase client config is missing.
 if (
   process.env.EAS_BUILD &&
   process.env.EAS_BUILD_PLATFORM === 'android' &&
@@ -50,6 +49,23 @@ if (
   );
 }
 
+// Fail EAS iOS builds early if Firebase client config is missing (APNs/FCM).
+if (
+  process.env.EAS_BUILD &&
+  process.env.EAS_BUILD_PLATFORM === 'ios' &&
+  !iosGoogleServicesFile
+) {
+  throw new Error(
+    '[app.config] iOS EAS build requires GoogleService-Info.plist via a private EAS file secret.\n' +
+      'Download it from Firebase Console for bundle com.saveful.driver.app, then run:\n' +
+      '  npm run eas:firebase-secret\n' +
+      'Or manually:\n' +
+      '  eas env:create development --name GOOGLE_SERVICES_PLIST --type file --value ./GoogleService-Info.plist --visibility secret\n' +
+      '  eas env:create preview --name GOOGLE_SERVICES_PLIST --type file --value ./GoogleService-Info.plist --visibility secret\n' +
+      '  eas env:create production --name GOOGLE_SERVICES_PLIST --type file --value ./GoogleService-Info.plist --visibility secret',
+  );
+}
+
 if (includeFirebase) {
   console.log('[app.config] Firebase enabled', {
     android: Boolean(androidGoogleServicesFile),
@@ -62,21 +78,25 @@ const firebasePlugins = includeFirebase
   ? ['@react-native-firebase/app', '@react-native-firebase/messaging']
   : [];
 
-const expoNotificationsPlugin = includeFirebase
-  ? [
-      'expo-notifications',
-      {
-        icon: './assets/intro/notification_icon.png',
-        color: '#9B8AFB',
-        sounds: ['./assets/sounds/pickup_alert.wav'],
-      },
-    ]
-  : [
-      'expo-notifications',
-      {
-        sounds: ['./assets/sounds/pickup_alert.wav'],
-      },
-    ];
+// production / store builds use production APNs; everything else uses development.
+const apsEnvironment =
+  process.env.EAS_BUILD_PROFILE === 'production' ? 'production' : 'development';
+
+const expoNotificationsPlugin = [
+  'expo-notifications',
+  {
+    ...(includeFirebase
+      ? {
+          icon: './assets/intro/notification_icon.png',
+          color: '#9B8AFB',
+        }
+      : {}),
+    sounds: ['./assets/sounds/pickup_alert.wav'],
+    // Required for iOS remote push (aps-environment + UIBackgroundModes).
+    mode: apsEnvironment,
+    enableBackgroundRemoteNotifications: true,
+  },
+];
 
 export default {
   expo: {
@@ -95,12 +115,17 @@ export default {
     assetBundlePatterns: ['assets/**/*'],
 
     ios: {
-      supportsTablet: true,
+      supportsTablet: false,
       icon: './assets/intro/Saveful-for-Business-logo.png',
       bundleIdentifier: 'com.saveful.driver.app',
       ...(iosGoogleServicesFile && { googleServicesFile: iosGoogleServicesFile }),
+      entitlements: {
+        'aps-environment': apsEnvironment,
+      },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // location is also added by expo-location; keep remote-notification for FCM.
+        UIBackgroundModes: ['remote-notification', 'location'],
       },
       config: {
         googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
@@ -143,6 +168,16 @@ export default {
       'expo-font',
       expoNotificationsPlugin,
       ...firebasePlugins,
+      // Firebase iOS (Swift) requires static frameworks or pod install fails.
+      [
+        'expo-build-properties',
+        {
+          ios: {
+            useFrameworks: 'static',
+            forceStaticLinking: ['RNFBApp', 'RNFBMessaging'],
+          },
+        },
+      ],
       [
         'expo-location',
         {
@@ -159,8 +194,8 @@ export default {
     ],
 
     extra: {
-      "eas": {
-        "projectId": "66c1acb2-e531-4a4e-999d-8d50788f9ead"
+      eas: {
+        projectId: '66c1acb2-e531-4a4e-999d-8d50788f9ead',
       },
       firebaseEnabled: includeFirebase,
     },

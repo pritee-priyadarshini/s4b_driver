@@ -8,10 +8,14 @@
       "distribution": "internal",
       "environment": "development",
       "env": {
-        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON",
+        "GOOGLE_SERVICES_PLIST": "@GOOGLE_SERVICES_PLIST"
       },
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
       }
     },
     "preview": {
@@ -19,7 +23,8 @@
       "developmentClient": false,
       "environment": "preview",
       "env": {
-        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON",
+        "GOOGLE_SERVICES_PLIST": "@GOOGLE_SERVICES_PLIST"
       },
       "android": {
         "buildType": "apk"
@@ -29,7 +34,8 @@
       "autoIncrement": true,
       "environment": "production",
       "env": {
-        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON",
+        "GOOGLE_SERVICES_PLIST": "@GOOGLE_SERVICES_PLIST"
       },
       "android": {
         "buildType": "app-bundle"

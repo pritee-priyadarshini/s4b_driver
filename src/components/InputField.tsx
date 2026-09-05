@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './AppText';
 import { palette } from '../theme/colors';
 import { spacing } from '../theme/spacing';
+import { normalize } from '../utils/responsive';
 
 type InputFieldProps = {
   label: string;
@@ -21,6 +22,8 @@ type InputFieldProps = {
   multiline?: boolean;
   secureTextEntry?: boolean;
   isPassword?: boolean;
+  /** Matches Saveful-for-Business auth form field styling. */
+  formStyle?: boolean;
   inputRef?: Ref<TextInput>;
   keyboardType?: TextInputProps['keyboardType'];
   autoCapitalize?: TextInputProps['autoCapitalize'];
@@ -41,6 +44,7 @@ export function InputField({
   multiline,
   secureTextEntry,
   isPassword,
+  formStyle = false,
   inputRef,
   keyboardType,
   autoCapitalize,
@@ -52,11 +56,15 @@ export function InputField({
   onBlur,
 }: InputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
-  const [hidden, setHidden] = useState(secureTextEntry);
+  const [hidden, setHidden] = useState(isPassword ? true : Boolean(secureTextEntry));
 
   return (
     <View style={styles.container}>
-      <AppText variant="label" color={palette.textMuted}>
+      <AppText
+        variant="label"
+        color={formStyle ? palette.black : palette.textMuted}
+        style={formStyle ? styles.labelForm : undefined}
+      >
         {label}
       </AppText>
 
@@ -67,7 +75,7 @@ export function InputField({
           editable={editable}
           secureTextEntry={isPassword ? hidden : secureTextEntry}
           placeholder={placeholder}
-          placeholderTextColor={palette.textMuted}
+          placeholderTextColor={palette.stone}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
@@ -76,6 +84,7 @@ export function InputField({
           onSubmitEditing={onSubmitEditing}
           style={[
             styles.input,
+            formStyle && styles.inputForm,
             multiline && styles.multiline,
             isFocused && styles.inputFocused,
           ]}
@@ -95,6 +104,7 @@ export function InputField({
           <Pressable
             style={styles.eye}
             onPress={() => setHidden((prev) => !prev)}
+            hitSlop={8}
           >
             <Ionicons
               name={hidden ? 'eye-off-outline' : 'eye-outline'}
@@ -113,6 +123,12 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
 
+  labelForm: {
+    textTransform: 'none',
+    fontSize: normalize(14),
+    lineHeight: normalize(18),
+  },
+
   inputWrapper: {
     position: 'relative',
     justifyContent: 'center',
@@ -127,6 +143,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingRight: 45,
     color: palette.text,
+    fontSize: normalize(16),
+    fontFamily: 'Saveful-Regular',
+  },
+
+  inputForm: {
+    minHeight: 48,
+    borderRadius: 10,
+    borderColor: '#D9D9D9',
+    backgroundColor: palette.white,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: normalize(15),
+    lineHeight: normalize(20),
   },
 
   eye: {

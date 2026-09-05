@@ -212,8 +212,9 @@ export function mapApiPickupToHistory(
         '',
     },
     items: mapClaimItems(pickup),
-    driverRating: 0,
-    restaurantRating: pickup.restaurantRating ?? 0,
+    // Ratings of the driver from charity and food business (not the driver's own rating).
+    driverRating: pickup.charityDriverRating ?? 0,
+    restaurantRating: pickup.restaurantDriverRating ?? 0,
   };
 }
 

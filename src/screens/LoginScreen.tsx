@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   Image,
-  ImageBackground,
   Keyboard,
   Platform,
   KeyboardAvoidingView,
@@ -14,6 +13,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
@@ -22,6 +23,7 @@ import { SavefulModal } from '../components/SavefulModal';
 import { useAuth } from '../store/AuthContext';
 import { palette } from '../theme/colors';
 import { authService } from '../services/authService';
+import type { AuthStackParamList } from '../navigation/types';
 import {
   getForgotPasswordErrorMessage,
   getForgotPasswordSuccessMessage,
@@ -31,11 +33,31 @@ import {
 import { showSuccessAlert } from '../utils/appAlert';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { hp, normalize, wp } from '../utils/responsive';
+import {
+  clearRememberedCredentials,
+  loadRememberedCredentials,
+  saveRememberedCredentials,
+} from '../utils/rememberedCredentials';
 
 type Mode = 'login' | 'forgot';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
+
+const valueProps = [
+  {
+    image: require('../../assets/intro/welcome_reduce_waste.png'),
+    label: 'SAVE \n FOOD',
+  },
+  {
+    image: require('../../assets/intro/welcome_feed_communities.png'),
+    label: 'FEED \n COMMUNITIES',
+  },
+  {
+    image: require('../../assets/intro/welcome_connect_locally.png'),
+    label: 'CONNECT \n LOCALLY',
+  },
+];
 
 const MODE_COPY: Record<Mode, { title: string; subtitle: string }> = {
   login: {
@@ -85,7 +107,9 @@ function PrimaryButton({
         {label}
       </AppText>
       {showArrow ? (
-        <Ionicons name="arrow-forward" size={normalize(18)} color={palette.white} />
+        <View style={styles.primaryButtonArrow}>
+          <Ionicons name="arrow-forward" size={16} color={palette.white} />
+        </View>
       ) : null}
     </Pressable>
   );
@@ -238,6 +262,7 @@ function ResetPasswordModalFields({
             value={newPassword}
             secureTextEntry
             isPassword
+            formStyle
             onChangeText={onNewPasswordChange}
           />
 
@@ -247,6 +272,7 @@ function ResetPasswordModalFields({
             value={confirmPassword}
             secureTextEntry
             isPassword
+            formStyle
             onChangeText={onConfirmPasswordChange}
           />
 
@@ -275,6 +301,7 @@ function ResetPasswordModalFields({
 
 export function LoginScreen() {
   const { login, authLoading } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const insets = useSafeAreaInsets();
   useTransparentStatusBar('dark');
 
@@ -294,11 +321,29 @@ export function LoginScreen() {
   const [resetError, setResetError] = useState('');
   const [resetStep, setResetStep] = useState<1 | 2>(1);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const trimmedEmail = email.trim().toLowerCase();
   const copy = MODE_COPY[mode];
   const isBusy = authLoading || loading;
   const keyboardVisible = keyboardHeight > 0;
+
+  useEffect(() => {
+    let mounted = true;
+
+    void loadRememberedCredentials()
+      .then((creds) => {
+        if (!mounted) return;
+        setRememberMe(creds.rememberMe);
+        if (creds.email) setEmail(creds.email);
+        if (creds.password) setPassword(creds.password);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -349,6 +394,17 @@ export function LoginScreen() {
 
       Keyboard.dismiss();
       await login(trimmedEmail, password);
+
+      // Persist after a successful login only — never block sign-in on SecureStore.
+      try {
+        if (rememberMe) {
+          await saveRememberedCredentials(trimmedEmail, password);
+        } else {
+          await clearRememberedCredentials();
+        }
+      } catch {
+        // Ignore persistence failures; session is already established.
+      }
     } catch (err: unknown) {
       setError(getLoginErrorMessage(err));
     }
@@ -483,164 +539,208 @@ export function LoginScreen() {
     });
   };
 
-  const androidKeyboardPad =
-    Platform.OS === 'android' && keyboardVisible
-      ? Math.max(0, keyboardHeight - insets.bottom)
-      : 0;
-
   return (
     <Screen backgroundColor={palette.creme} scrollable={false} transparentTop>
       <StatusBar style="dark" translucent backgroundColor="transparent" />
-      <ImageBackground
-        source={require('../../assets/intro/splash.png')}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <View style={styles.topAccent} />
+      <View style={styles.topAccent} />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardView}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardView}
+        enabled={keyboardVisible}
+      >
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + hp(1.5),
+              paddingBottom: keyboardVisible
+                ? keyboardHeight + hp(3)
+                : insets.bottom + hp(1.5),
+              paddingHorizontal: wp(5),
+            },
+          ]}
+          showsVerticalScrollIndicator={keyboardVisible}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
         >
-          <ScrollView
-            ref={scrollRef}
-            contentContainerStyle={[
-              styles.scrollContent,
-              !keyboardVisible && styles.scrollContentSteady,
-              {
-                paddingTop: insets.top + (keyboardVisible ? hp(1.5) : hp(3)),
-                paddingBottom: insets.bottom + hp(2.5) + androidKeyboardPad + (keyboardVisible ? hp(2) : hp(14)),
-              },
-            ]}
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={keyboardVisible}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            scrollEnabled={keyboardVisible}
-            bounces={keyboardVisible}
-            overScrollMode={keyboardVisible ? 'always' : 'never'}
-          >
-          {mode === 'forgot' ? (
+          <View style={styles.phoneColumn}>
             <Pressable
               style={styles.backRow}
-              onPress={() => switchMode('login')}
+              onPress={() => {
+                if (resetModalVisible) {
+                  closeResetModal();
+                  return;
+                }
+                if (mode === 'login') {
+                  navigation.navigate('Welcome');
+                } else {
+                  switchMode('login');
+                }
+              }}
               hitSlop={8}
             >
               <Ionicons name="chevron-back" size={normalize(20)} color={palette.kale} />
               <AppText variant="bodyBold" style={styles.backRowText}>
-                Back to sign in
+                {mode === 'login' ? 'Back' : 'Back to sign in'}
               </AppText>
             </Pressable>
-          ) : null}
 
-          <View style={[styles.hero, keyboardVisible && styles.heroCompact]}>
-            {mode === 'login' ? (
-              <Image
-                source={require('../../assets/intro/driver-logo.png')}
-                style={[styles.driverLogo, keyboardVisible && styles.driverLogoCompact]}
-                resizeMode="contain"
-              />
-            ) : null}
-            <AppText variant="h6" color={palette.primary} style={styles.formTitle}>
-              {copy.title}
-            </AppText>
-            <AppText variant="bodySmall" color={palette.textMuted} style={styles.formSubtitle}>
-              {copy.subtitle}
-            </AppText>
-          </View>
-
-          <View style={styles.formCard}>
-            <View style={styles.fieldsPanel}>
-              <InputField
-                label="Email address"
-                placeholder="your@email.com"
-                value={email}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="emailAddress"
-                returnKeyType={mode === 'login' ? 'next' : 'send'}
-                onSubmitEditing={() => {
-                  if (mode === 'login') {
-                    passwordRef.current?.focus();
-                  } else {
-                    void handleSendCode();
-                  }
-                }}
-                onFocus={scrollFieldIntoView}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  setError('');
-                }}
-              />
-
+            <View style={styles.formShell}>
               {mode === 'login' ? (
-                <>
+                <View style={styles.iconRow}>
+                  {valueProps.map((item) => (
+                    <View key={item.label} style={styles.iconItem}>
+                      <Image source={item.image} style={styles.valuePropImage} resizeMode="contain" />
+                      <AppText variant="caption" color={palette.textMuted} style={styles.iconLabel}>
+                        {item.label}
+                      </AppText>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.formCard}>
+                <View style={styles.formHeaderBand}>
+                  <Image
+                    source={require('../../assets/intro/logo.png')}
+                    style={styles.formLogo}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.driverBadge}>
+                    <AppText variant="caption" color={palette.middlegreen} style={styles.driverBadgeText}>
+                      for Drivers
+                    </AppText>
+                  </View>
+                  <AppText variant="h6" color={palette.primary} style={styles.formTitle}>
+                    {copy.title}
+                  </AppText>
+                  <AppText variant="bodySmall" color={palette.textMuted} style={styles.formSubtitle}>
+                    {copy.subtitle}
+                  </AppText>
+                </View>
+
+                <View style={styles.fieldsPanel}>
                   <InputField
-                    label="Password"
-                    placeholder="Enter your password"
-                    value={password}
-                    secureTextEntry
-                    isPassword
-                    textContentType="password"
-                    returnKeyType="go"
-                    inputRef={passwordRef}
+                    label="Email address"
+                    placeholder="your@email.com"
+                    formStyle
+                    value={email}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="emailAddress"
+                    returnKeyType={mode === 'login' ? 'next' : 'send'}
                     onSubmitEditing={() => {
-                      void handleLogin();
+                      if (mode === 'login') {
+                        passwordRef.current?.focus();
+                      } else {
+                        void handleSendCode();
+                      }
                     }}
                     onFocus={scrollFieldIntoView}
                     onChangeText={(text) => {
-                      setPassword(text);
+                      setEmail(text);
                       setError('');
                     }}
                   />
 
-                  <Pressable
-                    onPress={() => switchMode('forgot')}
-                    style={styles.forgotLinkWrap}
-                    hitSlop={4}
-                  >
-                    <AppText variant="bodySmall" color={palette.primary} style={styles.forgotLink}>
-                      Forgot password?
-                    </AppText>
-                  </Pressable>
-                </>
-              ) : null}
+                  {mode === 'login' ? (
+                    <>
+                      <InputField
+                        label="Password"
+                        placeholder="Enter your password"
+                        formStyle
+                        value={password}
+                        secureTextEntry
+                        isPassword
+                        textContentType="password"
+                        returnKeyType="go"
+                        inputRef={passwordRef}
+                        onSubmitEditing={() => {
+                          void handleLogin();
+                        }}
+                        onFocus={scrollFieldIntoView}
+                        onChangeText={(text) => {
+                          setPassword(text);
+                          setError('');
+                        }}
+                      />
 
-              <FormErrorBanner message={error} />
+                      <View style={styles.rememberRow}>
+                        <Pressable
+                          onPress={() => {
+                            setRememberMe((prev) => {
+                              const next = !prev;
+                              if (!next) {
+                                void clearRememberedCredentials().catch(() => undefined);
+                              }
+                              return next;
+                            });
+                          }}
+                          style={styles.rememberMeBtn}
+                          hitSlop={6}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: rememberMe }}
+                          accessibilityLabel="Remember me"
+                        >
+                          <Ionicons
+                            name={rememberMe ? 'checkbox' : 'square-outline'}
+                            size={normalize(20)}
+                            color={rememberMe ? palette.primary : palette.stone}
+                          />
+                          <AppText variant="bodySmall" style={styles.rememberMeLabel}>
+                            Remember me
+                          </AppText>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => switchMode('forgot')}
+                          style={styles.forgotLinkWrap}
+                          hitSlop={4}
+                        >
+                          <AppText variant="bodySmall" color={palette.primary} style={styles.forgotLink}>
+                            Forgot password?
+                          </AppText>
+                        </Pressable>
+                      </View>
+                    </>
+                  ) : null}
 
-              {mode === 'login' ? (
-                <PrimaryButton
-                  label={isBusy ? 'Signing in...' : 'Sign in'}
-                  onPress={handleLogin}
-                  disabled={isBusy}
-                  showArrow
-                />
-              ) : null}
+                  <FormErrorBanner message={error} />
 
-              {mode === 'forgot' ? (
-                <>
-                  <PrimaryButton
-                    label={isBusy ? 'Sending...' : 'Send verification code'}
-                    onPress={handleSendCode}
-                    disabled={isBusy}
-                  />
-                  <Pressable
-                    onPress={() => switchMode('login')}
-                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-                  >
-                    <AppText variant="bodyBold" color={palette.primary} style={styles.secondaryButtonText}>
-                      Back to sign in
-                    </AppText>
-                  </Pressable>
-                </>
-              ) : null}
+                  {mode === 'login' ? (
+                    <PrimaryButton
+                      label={isBusy ? 'Signing in...' : 'Sign in'}
+                      onPress={handleLogin}
+                      disabled={isBusy}
+                      showArrow
+                    />
+                  ) : null}
+
+                  {mode === 'forgot' ? (
+                    <>
+                      <PrimaryButton
+                        label={isBusy ? 'Sending...' : 'Send verification code'}
+                        onPress={handleSendCode}
+                        disabled={isBusy}
+                      />
+                      <Pressable
+                        onPress={() => switchMode('login')}
+                        style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+                      >
+                        <AppText variant="bodyBold" color={palette.primary} style={styles.secondaryButtonText}>
+                          Back to sign in
+                        </AppText>
+                      </Pressable>
+                    </>
+                  ) : null}
+                </View>
+              </View>
             </View>
           </View>
         </ScrollView>
-        </KeyboardAvoidingView>
-      </ImageBackground>
+      </KeyboardAvoidingView>
 
       <SavefulModal
         visible={resetModalVisible}
@@ -689,9 +789,6 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
   topAccent: {
     width: '100%',
     height: hp(0.35),
@@ -700,16 +797,12 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: wp(5),
-    gap: hp(1.6),
+    gap: hp(1.2),
   },
-  scrollContentSteady: {
-    justifyContent: 'center',
+  phoneColumn: {
+    width: '100%',
   },
   backRow: {
     flexDirection: 'row',
@@ -717,29 +810,82 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     gap: wp(0.5),
     paddingVertical: hp(0.3),
+    marginBottom: hp(0.5),
   },
   backRowText: {
     color: palette.kale,
     textTransform: 'none',
     fontSize: normalize(15),
   },
-  hero: {
-    alignItems: 'center',
-    gap: hp(0.4),
+  formShell: {
+    gap: hp(1.4),
+    marginTop: hp(0.8),
+  },
+  iconRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: wp(2),
+    gap: wp(2),
   },
-  heroCompact: {
-    gap: hp(0.25),
+  iconItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: hp(0.5),
+    minWidth: 0,
   },
-  driverLogo: {
-    width: wp(46),
-    height: hp(12),
-    marginBottom: hp(0.2),
+  valuePropImage: {
+    width: 64,
+    height: 64,
   },
-  driverLogoCompact: {
-    width: wp(34),
-    height: hp(7.5),
-    marginBottom: hp(0.1),
+  iconLabel: {
+    textAlign: 'center',
+    fontSize: normalize(12),
+    lineHeight: normalize(14),
+    letterSpacing: 0.3,
+  },
+  formCard: {
+    backgroundColor: palette.white,
+    borderRadius: normalize(24),
+    borderWidth: 1,
+    borderColor: palette.strokecream,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: palette.black,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  formHeaderBand: {
+    alignItems: 'center',
+    gap: hp(0.6),
+    paddingHorizontal: wp(5),
+    paddingTop: hp(2),
+    paddingBottom: hp(2),
+    backgroundColor: palette.creme,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.strokecream,
+  },
+  formLogo: {
+    width: 140,
+    height: 44,
+  },
+  driverBadge: {
+    paddingHorizontal: wp(3),
+    paddingVertical: hp(0.3),
+    borderRadius: normalize(999),
+    backgroundColor: 'rgba(64, 146, 91, 0.12)',
+  },
+  driverBadgeText: {
+    textTransform: 'none',
+    fontSize: normalize(12),
+    letterSpacing: 0.4,
+    fontWeight: '700',
   },
   formTitle: {
     textAlign: 'center',
@@ -752,35 +898,36 @@ const styles = StyleSheet.create({
     fontSize: normalize(14),
     lineHeight: normalize(20),
     textTransform: 'none',
-    maxWidth: wp(78),
-  },
-  formCard: {
-    backgroundColor: palette.white,
-    borderRadius: normalize(22),
-    borderWidth: 1,
-    borderColor: palette.strokecream,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: palette.black,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.08,
-        shadowRadius: 18,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    maxWidth: '100%',
+    paddingHorizontal: wp(2),
   },
   fieldsPanel: {
     paddingHorizontal: wp(5),
-    paddingTop: hp(1.8),
-    paddingBottom: hp(2),
-    gap: hp(1.2),
+    paddingTop: hp(2),
+    paddingBottom: hp(2.2),
+    gap: hp(1.5),
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: wp(3),
+    marginTop: -hp(0.2),
+  },
+  rememberMeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(1.5),
+    flexShrink: 1,
+    minHeight: normalize(32),
+  },
+  rememberMeLabel: {
+    color: palette.black,
+    textTransform: 'none',
+    fontSize: normalize(13),
   },
   forgotLinkWrap: {
-    alignSelf: 'flex-end',
-    marginTop: -hp(0.35),
+    flexShrink: 0,
   },
   forgotLink: {
     textTransform: 'none',
@@ -887,21 +1034,41 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     flex: 1,
+    minWidth: 0,
     color: palette.validation,
     textTransform: 'none',
     lineHeight: normalize(18),
   },
   primaryButton: {
     backgroundColor: palette.eggplant,
-    minHeight: normalize(52),
-    paddingVertical: hp(1.6),
+    minHeight: 48,
+    paddingVertical: 12,
     paddingHorizontal: wp(5),
     borderRadius: normalize(14),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: wp(2),
+    gap: 10,
     marginTop: hp(0.4),
+    ...Platform.select({
+      ios: {
+        shadowColor: palette.eggplant,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  primaryButtonArrow: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryButtonDisabled: {
     opacity: 0.65,
@@ -912,8 +1079,8 @@ const styles = StyleSheet.create({
     textTransform: 'none',
   },
   secondaryButton: {
-    minHeight: normalize(48),
-    paddingVertical: hp(1.4),
+    minHeight: 48,
+    paddingVertical: 12,
     borderRadius: normalize(14),
     borderWidth: 1,
     borderColor: palette.strokecream,

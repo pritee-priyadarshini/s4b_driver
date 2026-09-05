@@ -1,8 +1,13 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 import { HistoryOrder } from '../types/history';
 
+export type AuthStackParamList = {
+  Welcome: undefined;
+  Login: undefined;
+};
+
 export type RootStackParamList = {
-  Auth: undefined;
+  Auth: NavigatorScreenParams<AuthStackParamList> | undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
 
   OrderDetails: {

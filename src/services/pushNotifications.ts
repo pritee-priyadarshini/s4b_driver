@@ -217,7 +217,9 @@ export function logPushEnvironmentOnce(): void {
 
   if (!FIREBASE_ENABLED) {
     pushWarn(
-      'firebaseEnabled=false in this build. google-services.json was not bundled at build time. Rebuild after EAS GOOGLE_SERVICES_JSON secret is set.',
+      Platform.OS === 'ios'
+        ? 'firebaseEnabled=false in this build. GoogleService-Info.plist was not bundled at build time. Rebuild after EAS GOOGLE_SERVICES_PLIST secret is set.'
+        : 'firebaseEnabled=false in this build. google-services.json was not bundled at build time. Rebuild after EAS GOOGLE_SERVICES_JSON secret is set.',
     );
   }
 }
@@ -448,7 +450,9 @@ export async function registerDeviceToken(
 
   if (!FIREBASE_ENABLED) {
     throw new Error(
-      'Firebase is not enabled in this build (firebaseEnabled=false). Rebuild the dev client after GOOGLE_SERVICES_JSON is set in EAS.',
+      Platform.OS === 'ios'
+        ? 'Firebase is not enabled in this build (firebaseEnabled=false). Rebuild the iOS client after GOOGLE_SERVICES_PLIST is set in EAS.'
+        : 'Firebase is not enabled in this build (firebaseEnabled=false). Rebuild the dev client after GOOGLE_SERVICES_JSON is set in EAS.',
     );
   }
 
@@ -467,6 +471,13 @@ export async function registerDeviceToken(
     const permitted = await ensureNotificationPermission({ prompt: options.prompt !== false });
     if (!permitted) {
       throw new Error('Notification permission was denied. Enable notifications in system settings.');
+    }
+
+    // iOS must register with APNs before Firebase can issue an FCM token.
+    if (Platform.OS === 'ios' && !messaging().isDeviceRegisteredForRemoteMessages) {
+      pushLog('Registering iOS device for remote messages (APNs)');
+      await messaging().registerDeviceForRemoteMessages();
+      pushLog('iOS APNs registration complete');
     }
 
     pushLog('Requesting FCM token from Firebase');
@@ -584,6 +595,17 @@ export function setupForegroundNotificationHandler(): void {
         trigger: Platform.OS === 'android' ? { channelId: 'default' } : null,
       });
       pushLog('Foreground banner scheduled via expo-notifications', { channelId: 'default' });
+    }
+
+    if (data.type === 'driver_rated') {
+      try {
+        const { usePickupStore } = require('../store/pickupStore') as typeof import('../store/pickupStore');
+        void usePickupStore.getState().fetchPastPickups(null);
+      } catch (err) {
+        pushWarn('Failed to refresh history after driver_rated', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     if (

@@ -29,6 +29,10 @@ export type ApiDriverPickup = {
   cancelledAt?: string | null;
   completionNotes?: string | null;
   restaurantRating?: number | null;
+  charityDriverRating?: number | null;
+  charityDriverRatingNote?: string | null;
+  restaurantDriverRating?: number | null;
+  restaurantDriverRatingNote?: string | null;
   photoUrl?: string | null;
   claim: {
     id: number;
