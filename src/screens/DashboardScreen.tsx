@@ -323,7 +323,7 @@ export function DashboardScreen() {
     if (tryingToGoLive && useDriverShiftStore.getState().liveStatus === 'offline') {
       showAppError(
         'Location required',
-        'To go live, allow location access when prompted. For background tracking on Android, choose "While using the app" first — then tap Continue on the next screen to open Settings and select "Allow all the time".',
+        'To go live, allow location when prompted. Choose “While Using the App”, then on the next screen choose “Change to Always Allow” (iOS) or “Allow all the time” (Android).',
       );
       return;
     }

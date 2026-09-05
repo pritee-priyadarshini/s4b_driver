@@ -5,7 +5,6 @@ import { Platform } from 'react-native';
 
 import {
   requestDriverLocationPermissions,
-  showLocationSettingsAlert,
 } from '../utils/locationPermissions';
 
 export const DRIVER_LOCATION_TASK = 'driver-background-location';
@@ -139,15 +138,11 @@ export async function startDriverLocationTracking(
 
   const permission = await requestDriverLocationPermissions();
   if (!permission.foregroundGranted) {
-    if (permission.needsSettings) {
-      showLocationSettingsAlert('foreground');
-    }
+    // requestDriverLocationPermissions already prompts Settings when blocked.
     return { ok: false };
   }
 
-  if (!permission.backgroundGranted && !permission.backgroundSkipped && permission.needsSettings) {
-    showLocationSettingsAlert('background');
-  }
+  // Background Settings prompt is also handled inside requestDriverLocationPermissions.
 
   const current = await Location.getCurrentPositionAsync({
     accuracy: Location.Accuracy.Balanced,

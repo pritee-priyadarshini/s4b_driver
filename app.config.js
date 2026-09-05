@@ -126,6 +126,12 @@ export default {
         ITSAppUsesNonExemptEncryption: false,
         // location is also added by expo-location; keep remote-notification for FCM.
         UIBackgroundModes: ['remote-notification', 'location'],
+        NSLocationWhenInUseUsageDescription:
+          'Saveful Driver uses your location while you are on a live shift to show nearby food pickups, navigate you to restaurants and charity sites, and share your position with your organisation so they can coordinate collections. For example, when you accept a pickup we use your location to route you to the restaurant and then to the charity hub.',
+        NSLocationAlwaysAndWhenInUseUsageDescription:
+          'Saveful Driver needs continuous location access while your shift is live so we can keep updating your route and sharing your position with your charity even when the app is in the background or your phone is locked. Tracking stops when you end your shift. For example, if you switch to Maps during a delivery, your organisation can still see that you are en route.',
+        NSLocationAlwaysUsageDescription:
+          'Saveful Driver needs continuous location access while your shift is live so we can keep updating your route and sharing your position with your charity even when the app is in the background or your phone is locked. Tracking stops when you end your shift.',
       },
       config: {
         googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
@@ -182,9 +188,9 @@ export default {
         'expo-location',
         {
           locationWhenInUsePermission:
-            'Saveful Driver needs your location while you are on a live shift to route you to pickups.',
+            'Saveful Driver uses your location while you are on a live shift to show nearby food pickups, navigate you to restaurants and charity sites, and share your position with your organisation so they can coordinate collections. For example, when you accept a pickup we use your location to route you to the restaurant and then to the charity hub.',
           locationAlwaysAndWhenInUsePermission:
-            'Saveful Driver needs "Always" location access so we can keep tracking your route while you are live, even when the app is in the background. Please choose Allow all the time in Settings if prompted.',
+            'Saveful Driver needs continuous location access while your shift is live so we can keep updating your route and sharing your position with your charity even when the app is in the background or your phone is locked. Tracking stops when you end your shift. For example, if you switch to Maps during a delivery, your organisation can still see that you are en route.',
           isIosBackgroundLocationEnabled: true,
           isAndroidBackgroundLocationEnabled: true,
           isAndroidForegroundServiceEnabled: true,

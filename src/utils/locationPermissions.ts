@@ -15,14 +15,12 @@ function getAndroidApiLevel(): number {
 
 function getSettingsMessage(kind: 'foreground' | 'background'): string {
   if (kind === 'background') {
-    if (Platform.OS === 'android') {
-      return 'Open Settings → Permissions → Location and choose "Allow all the time" so we can keep tracking your route while you are live, even when the app is in the background.';
-    }
-
-    return 'Open Settings → Location and choose "Always" so we can keep tracking your route while you are live, even when the app is in the background.';
+    return Platform.OS === 'android'
+      ? 'Location permission was blocked. Open Settings, tap Location, and select "Allow all the time" so Saveful Driver can keep sharing your position while your shift is live.'
+      : 'Location permission was blocked. Open Settings, tap Location, and select "Always" so Saveful Driver can keep sharing your position while your shift is live.';
   }
 
-  return 'Location is required to go live and route you to pickups. Open Settings and allow location access.';
+  return 'Location permission was blocked. Open Settings and allow location access so you can go live and navigate to pickups.';
 }
 
 export function showLocationSettingsAlert(kind: 'foreground' | 'background' = 'foreground'): void {
@@ -43,31 +41,39 @@ export function showLocationSettingsAlert(kind: 'foreground' | 'background' = 'f
   }, 500);
 }
 
+/**
+ * Short pre-prompt before the OS permission UI.
+ * The user should pick Always / Allow all the time on the next system screen —
+ * we do not ask them to dig through Settings manually first.
+ */
 function confirmBackgroundLocationRationale(): Promise<boolean> {
   const androidApi = getAndroidApiLevel();
   const android11Plus = Platform.OS === 'android' && androidApi >= 30;
 
   let message =
-    'To track your route while you are live — even when the app is in the background — we need background location access.';
+    'Saveful Driver uses continuous location while your shift is live to keep your route updated and share your position with your charity - even when the app is in the background. Tracking stops when you end your shift.';
 
-  if (android11Plus) {
+  if (Platform.OS === 'ios') {
     message +=
-      '\n\nOn your Android version, "Allow all the time" does not appear in the first popup. After you tap Continue, Android will open Settings — choose Permissions → Location → Allow all the time.';
-  } else if (Platform.OS === 'android') {
+      '\n\nOn the next screen, choose “Change to Always Allow”.';
+  } else if (android11Plus) {
+    // Android 11+ cannot put "Allow all the time" in the first popup.
+    // requestBackgroundPermissionsAsync opens the system location screen
+    // where the user selects that option directly.
     message +=
-      '\n\nOn the next screen, choose "Allow all the time" if you see it. Otherwise open Settings and set Location to Allow all the time.';
+      '\n\nOn the next screen, select “Allow all the time”.';
   } else {
     message +=
-      '\n\nOn the next screen, choose "Change to Always Allow" or open Settings and set Location to Always.';
+      '\n\nOn the next screen, choose “Allow all the time”.';
   }
 
   if (IS_EXPO_GO) {
     message +=
-      '\n\nNote: You are running in Expo Go. Background location works best in a development or production build of Saveful Driver.';
+      '\n\nNote: You are in Expo Go. Background location works best in a Saveful Driver build.';
   }
 
   return new Promise((resolve) => {
-    showAppConfirm('Background location needed', message, {
+    showAppConfirm('Keep location on while live', message, {
       confirmText: 'Continue',
       cancelText: 'While using app only',
       onConfirm: () => resolve(true),
@@ -94,10 +100,12 @@ export async function requestDriverLocationPermissions(
 ): Promise<DriverLocationPermissionResult> {
   const { requestBackground = true } = options;
 
+  // 1) System dialog: Allow Once / While Using / Don't Allow
   const foreground = await Location.requestForegroundPermissionsAsync();
   const foregroundGranted = foreground.status === 'granted';
 
   if (!foregroundGranted) {
+    // Only send to Settings if the OS will not show the dialog again.
     if (!foreground.canAskAgain) {
       showLocationSettingsAlert('foreground');
     }
@@ -131,6 +139,7 @@ export async function requestDriverLocationPermissions(
     };
   }
 
+  // 2) Explain briefly, then let the OS show the Always / Allow all the time choice.
   const wantsBackground = await confirmBackgroundLocationRationale();
   if (!wantsBackground) {
     return {
@@ -142,10 +151,22 @@ export async function requestDriverLocationPermissions(
     };
   }
 
+  // iOS: "Change to Always Allow" sheet
+  // Android 10: dialog with "Allow all the time"
+  // Android 11+: system location permission screen (selection UI — not manual path hunting)
   const background = await Location.requestBackgroundPermissionsAsync();
-  const backgroundGranted = background.status === 'granted';
+  let backgroundGranted = background.status === 'granted';
 
-  if (!backgroundGranted && !background.canAskAgain) {
+  // Re-check after the system UI closes (especially Android settings picker).
+  if (!backgroundGranted) {
+    const recheck = await Location.getBackgroundPermissionsAsync();
+    backgroundGranted = recheck.status === 'granted';
+  }
+
+  // Settings fallback only if the OS permanently blocked further prompts
+  // (e.g. Don't Allow / denied + don't ask again / Allow Once dead-end).
+  const needsSettings = !backgroundGranted && background.canAskAgain === false;
+  if (needsSettings) {
     showLocationSettingsAlert('background');
   }
 
@@ -153,7 +174,7 @@ export async function requestDriverLocationPermissions(
     ok: true,
     foregroundGranted: true,
     backgroundGranted,
-    needsSettings: !backgroundGranted && !background.canAskAgain,
+    needsSettings,
     backgroundSkipped: false,
   };
 }
