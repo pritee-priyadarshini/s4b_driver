@@ -12,12 +12,16 @@ export const authService = {
     api.post<LoginResponse>('/auth/login', {
       email: normalizeEmail(email),
       password,
+      targetApp: 'driver',
     }),
 
   profile: () => api.get<AuthProfile>('/auth/profile'),
 
   forgotPassword: (email: string) =>
-    api.post('/auth/forgot-password', { email: normalizeEmail(email) }),
+    api.post('/auth/forgot-password', {
+      email: normalizeEmail(email),
+      targetApp: 'driver',
+    }),
 
   resetPassword: (email: string, otp: string, newPassword: string) =>
     api.post('/auth/reset-password', {

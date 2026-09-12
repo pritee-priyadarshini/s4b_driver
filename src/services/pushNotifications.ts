@@ -113,12 +113,26 @@ export async function processIncomingPickupNotification(params: {
     notification?.title ??
     data.title ??
     (isAssigned ? 'Pickup assigned to you' : 'New pickup available!');
-  const body =
-    notification?.body ??
-    data.body ??
-    (isAssigned
-      ? 'Accept or decline this assignment'
-      : 'A pickup needs your attention');
+
+  const restaurantName = data.restaurantName?.trim();
+  const charityName = data.claimantOrgName?.trim();
+  const fallbackBody = (() => {
+    if (isAssigned) {
+      if (restaurantName && charityName) {
+        return `Collect from ${restaurantName} for delivery to ${charityName}`;
+      }
+      return 'Accept or decline this assignment';
+    }
+    if (restaurantName && charityName) {
+      return `Ready for collection from ${restaurantName} for delivery to ${charityName}`;
+    }
+    if (restaurantName) {
+      return `Ready for collection from ${restaurantName}`;
+    }
+    return 'A pickup needs your attention';
+  })();
+
+  const body = notification?.body ?? data.body ?? fallbackBody;
 
   let soundEnabled = true;
   let vibrationEnabled = true;

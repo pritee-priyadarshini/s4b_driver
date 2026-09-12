@@ -44,6 +44,9 @@ export const driverService = {
   respondToAssignment: (pickupId: number, accept: boolean) =>
     api.patch<RespondAssignmentResponse>(`/drivers/pickups/${pickupId}/respond`, { accept }),
 
+  declineAvailablePickup: (claimId: number) =>
+    api.post<{ message: string }>('/drivers/pickup/decline-available', { claimId }),
+
   getPickups: (filter: 'current' | 'past') =>
     api.get<ApiDriverPickup[]>('/drivers/pickups', { params: { filter } }),
 

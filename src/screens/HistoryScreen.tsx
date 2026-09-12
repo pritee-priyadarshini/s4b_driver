@@ -271,9 +271,9 @@ export function HistoryScreen({ navigation }: Props) {
 
           <View style={styles.footerRow}>
             <AppText variant="caption" style={styles.ratingText}>
-              Charity {formatRating(item.driverRating)}
+              By charity {formatRating(item.driverRating)}
               {'  ·  '}
-              Business {formatRating(item.restaurantRating)}
+              By business {formatRating(item.restaurantRating)}
             </AppText>
             <Ionicons name="chevron-forward" size={normalize(16)} color={palette.stone} />
           </View>

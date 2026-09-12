@@ -252,7 +252,7 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
             <View style={styles.feedbackRow}>
               <View style={styles.feedbackCopy}>
                 <AppText variant="bodyBold" style={styles.feedbackTitle}>
-                  Charity
+                  Rated by charity
                 </AppText>
                 {charityRating != null ? (
                   <StarRating rating={charityRating} />
@@ -272,7 +272,7 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
             <View style={styles.feedbackRow}>
               <View style={styles.feedbackCopy}>
                 <AppText variant="bodyBold" style={styles.feedbackTitle}>
-                  Food business
+                  Rated by food business
                 </AppText>
                 {businessRating != null ? (
                   <StarRating rating={businessRating} />

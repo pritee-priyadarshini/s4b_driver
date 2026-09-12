@@ -47,6 +47,9 @@ function humanizeRawMessage(message: string): string {
   if (lower.includes('no organisation found')) {
     return 'No organisation is linked to this account.';
   }
+  if (lower.includes('not registered as a driver')) {
+    return 'This account is not registered as a driver.';
+  }
 
   if (TECHNICAL_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     return '';

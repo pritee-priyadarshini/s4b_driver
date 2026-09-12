@@ -29,6 +29,7 @@ export function PickupAlertModal() {
   const { driver } = useAuth();
   const acceptPickup = usePickupStore((s) => s.acceptPickup);
   const respondToAssignment = usePickupStore((s) => s.respondToAssignment);
+  const declineAvailablePickup = usePickupStore((s) => s.declineAvailablePickup);
   const fetchCurrentPickups = usePickupStore((s) => s.fetchCurrentPickups);
   const insets = useSafeAreaInsets();
 
@@ -108,16 +109,21 @@ export function PickupAlertModal() {
           throw new Error('Missing pickup id for assignment');
         }
         await respondToAssignment(pickupId, false);
+        void fetchCurrentPickups(driver, useDriverShiftStore.getState().driverLocation);
+      } else {
+        const claimId = Number(alert.claimId);
+        if (!Number.isFinite(claimId)) {
+          throw new Error('Missing claim id for pickup');
+        }
+        // Broadcast "Pickup available" — notify charity so they can re-assign / self-collect.
+        await declineAvailablePickup(claimId);
       }
       dismiss();
-      if (isAssignedAlert) {
-        void fetchCurrentPickups(driver, useDriverShiftStore.getState().driverLocation);
-      }
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         usePickupStore.getState().error ??
-        'Failed to decline assignment. Please try again.';
+        'Failed to decline. Please try again.';
       showAppError('Decline failed', message);
     } finally {
       acceptingRef.current = false;

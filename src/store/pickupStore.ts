@@ -27,6 +27,7 @@ type PickupState = {
   completePickup: (pickupId: number) => Promise<ApiDriverPickup>;
   acceptPickup: (claimId: number, listingId: number) => Promise<void>;
   respondToAssignment: (pickupId: number, accept: boolean) => Promise<void>;
+  declineAvailablePickup: (claimId: number) => Promise<void>;
   removePickupLocally: (pickupId: number) => void;
   patchPickupLocally: (pickupId: number, patch: Partial<DashboardPickup>) => void;
   clearError: () => void;
@@ -181,6 +182,18 @@ export const usePickupStore = create<PickupState>((set, get) => ({
       const message =
         err instanceof Error ? err.message : 'Failed to respond to assignment';
       set({ actionPickupId: null, error: message });
+      throw err;
+    }
+  },
+
+  declineAvailablePickup: async (claimId) => {
+    set({ error: null });
+    try {
+      await driverService.declineAvailablePickup(claimId);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to decline pickup';
+      set({ error: message });
       throw err;
     }
   },
