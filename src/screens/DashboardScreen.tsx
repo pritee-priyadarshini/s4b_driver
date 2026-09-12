@@ -38,6 +38,7 @@ import {
 } from '../utils/pickupMappers';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
+import { formatKgLabel } from '../utils/formatKg';
 import { showAppError } from '../utils/appAlert';
 import { geocodeAddress } from '../utils/geocodeAddress';
 
@@ -796,16 +797,22 @@ export function DashboardScreen() {
         title={foodModal?.title}
         subtitle="Items to collect from restaurant"
       >
-        {foodModal?.items.map((food) => (
-          <View key={food.name} style={styles.foodRow}>
-            <AppText variant="body" style={{ flex: 1 }}>{food.name}</AppText>
-            <AppText variant="bodyBold" color={palette.stone}>{food.qty} kg</AppText>
+        {foodModal?.items.map((food, index) => (
+          <View key={`${food.name}-${index}`} style={styles.foodRow}>
+            <AppText variant="body" style={styles.foodName} numberOfLines={2}>
+              {food.name}
+            </AppText>
+            <AppText variant="bodySmall" style={styles.foodQty}>
+              {formatKgLabel(food.qty)}
+            </AppText>
           </View>
         ))}
         <View style={styles.foodTotal}>
-          <AppText variant="bodyBold">Total</AppText>
-          <AppText variant="bodyBold">
-            {foodModal ? itemQty(foodModal.items) : 0} kg
+          <AppText variant="bodyBold" style={styles.foodTotalLabel}>
+            Total
+          </AppText>
+          <AppText variant="bodySmall" style={styles.foodTotalQty}>
+            {formatKgLabel(foodModal ? itemQty(foodModal.items) : 0)}
           </AppText>
         </View>
       </AppBottomSheet>
@@ -1424,17 +1431,47 @@ const styles = StyleSheet.create({
   },
   foodRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: hp(1),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.strokecream,
+    gap: wp(3),
+  },
+  foodName: {
+    flex: 1,
+    flexShrink: 1,
+    textTransform: 'none',
+  },
+  foodQty: {
+    color: palette.black,
+    textTransform: 'none',
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(15),
+    lineHeight: normalize(22),
+    flexShrink: 0,
+    textAlign: 'right',
+    minWidth: wp(18),
   },
   foodTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: hp(1.5),
     paddingTop: hp(1.2),
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.strokecream,
+    gap: wp(3),
+  },
+  foodTotalLabel: {
+    textTransform: 'none',
+  },
+  foodTotalQty: {
+    color: palette.black,
+    textTransform: 'none',
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(15),
+    lineHeight: normalize(22),
+    flexShrink: 0,
   },
   tripRoot: {
     flex: 1,

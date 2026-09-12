@@ -27,6 +27,7 @@ import { AuthDriver } from '../types/auth';
 import { HistoryOrder } from '../types/history';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
+import { formatKgLabel } from '../utils/formatKg';
 
 import {
   MainTabParamList,
@@ -260,8 +261,8 @@ export function HistoryScreen({ navigation }: Props) {
               onPress={() => setFoodModal(item)}
               style={styles.kgChip}
             >
-              <AppText variant="bodyBold" style={styles.kgChipText}>
-                {qty} kg
+              <AppText variant="bodySmall" style={styles.kgChipText}>
+                {formatKgLabel(qty)}
               </AppText>
               <AppText variant="caption" style={styles.kgChipSub}>
                 {item.items.length} items
@@ -338,20 +339,22 @@ export function HistoryScreen({ navigation }: Props) {
         title={foodModal?.restaurant.name}
         subtitle={foodModal ? `${foodModal.orderId} · Items collected` : undefined}
       >
-        {foodModal?.items.map((food) => (
-          <View key={food.name} style={styles.foodRow}>
-            <AppText variant="body" style={styles.foodName}>
+        {foodModal?.items.map((food, index) => (
+          <View key={`${food.name}-${index}`} style={styles.foodRow}>
+            <AppText variant="body" style={styles.foodName} numberOfLines={2}>
               {food.name}
             </AppText>
-            <AppText variant="bodyBold" style={styles.foodQty}>
-              {food.qty} kg
+            <AppText variant="bodySmall" style={styles.foodQty}>
+              {formatKgLabel(food.qty)}
             </AppText>
           </View>
         ))}
         <View style={styles.foodTotal}>
-          <AppText variant="bodyBold">Total</AppText>
-          <AppText variant="bodyBold">
-            {foodModal ? itemQty(foodModal.items) : 0} kg
+          <AppText variant="bodyBold" style={styles.foodTotalLabel}>
+            Total
+          </AppText>
+          <AppText variant="bodySmall" style={styles.foodTotalQty}>
+            {formatKgLabel(foodModal ? itemQty(foodModal.items) : 0)}
           </AppText>
         </View>
       </AppBottomSheet>
@@ -583,10 +586,15 @@ const styles = StyleSheet.create({
   },
   kgChip: {
     alignItems: 'flex-end',
+    flexShrink: 0,
+    minWidth: wp(18),
   },
   kgChipText: {
     color: palette.black,
     textTransform: 'none',
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(15),
+    lineHeight: normalize(22),
   },
   kgChipSub: {
     color: ACCENT,
@@ -626,22 +634,43 @@ const styles = StyleSheet.create({
     paddingVertical: hp(1),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.strokecream,
+    gap: wp(3),
   },
   foodName: {
     flex: 1,
+    flexShrink: 1,
     textTransform: 'none',
   },
   foodQty: {
-    color: palette.stone,
+    color: palette.black,
     textTransform: 'none',
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(15),
+    lineHeight: normalize(22),
+    flexShrink: 0,
+    textAlign: 'right',
+    minWidth: wp(18),
   },
   foodTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: hp(1.5),
     paddingTop: hp(1.2),
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.strokecream,
+    gap: wp(3),
+  },
+  foodTotalLabel: {
+    textTransform: 'none',
+  },
+  foodTotalQty: {
+    color: palette.black,
+    textTransform: 'none',
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(15),
+    lineHeight: normalize(22),
+    flexShrink: 0,
   },
 });
 

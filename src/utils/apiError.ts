@@ -50,6 +50,10 @@ function humanizeRawMessage(message: string): string {
   if (lower.includes('not registered as a driver')) {
     return 'This account is not registered as a driver.';
   }
+  // Nest forbidNonWhitelisted noise — never show raw "property X should not exist".
+  if (lower.includes('should not exist') || lower.includes('whitelist')) {
+    return '';
+  }
 
   if (TECHNICAL_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     return '';
@@ -94,8 +98,17 @@ export function getLoginErrorMessage(
     if (apiMessage) return apiMessage;
 
     const status = error.response?.status;
+    if (status === 400) return 'Please check your email and password and try again.';
     if (status === 401) return 'Email or password is incorrect. Please try again.';
-    if (status === 403) return "You don't have permission to sign in with this account.";
+    if (status === 403) {
+      // Prefer explicit driver rejection from backend when present.
+      const raw = error.response?.data as { message?: string | string[] } | undefined;
+      const msg = Array.isArray(raw?.message) ? raw?.message[0] : raw?.message;
+      if (typeof msg === 'string' && msg.toLowerCase().includes('driver')) {
+        return 'This account is not registered as a driver.';
+      }
+      return "You don't have permission to sign in with this account.";
+    }
     if (status === 429) return 'Too many attempts. Please wait and try again.';
   }
 
@@ -111,6 +124,10 @@ export function getUserFriendlyErrorMessage(
   error: unknown,
   fallback = 'Something went wrong. Please try again.',
 ): string {
+  if (error instanceof Error && error.message === 'NOT_A_DRIVER') {
+    return 'This account is not registered as a driver.';
+  }
+
   if (isAxiosError(error)) {
     const apiMessage = extractApiMessage(error.response?.data);
     if (apiMessage) return apiMessage;
@@ -118,7 +135,14 @@ export function getUserFriendlyErrorMessage(
     const status = error.response?.status;
     if (status === 400) return 'Please check your details and try again.';
     if (status === 401) return 'Your session has expired. Please sign in again.';
-    if (status === 403) return "You don't have permission to do that.";
+    if (status === 403) {
+      const raw = error.response?.data as { message?: string | string[] } | undefined;
+      const msg = Array.isArray(raw?.message) ? raw?.message[0] : raw?.message;
+      if (typeof msg === 'string' && msg.toLowerCase().includes('driver')) {
+        return 'This account is not registered as a driver.';
+      }
+      return "You don't have permission to do that.";
+    }
     if (status === 404) return "We couldn't find what you're looking for.";
     if (status === 429) return 'Too many attempts. Please wait and try again.';
   }
@@ -132,6 +156,16 @@ export function getUserFriendlyErrorMessage(
 }
 
 export function getForgotPasswordErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message === 'NOT_A_DRIVER') {
+    return 'This account is not registered as a driver.';
+  }
+  if (isAxiosError(error) && error.response?.status === 403) {
+    const raw = error.response?.data as { message?: string | string[] } | undefined;
+    const msg = Array.isArray(raw?.message) ? raw?.message[0] : raw?.message;
+    if (typeof msg === 'string' && msg.toLowerCase().includes('driver')) {
+      return 'This account is not registered as a driver.';
+    }
+  }
   return getUserFriendlyErrorMessage(
     error,
     'Could not send reset code. Please try again.',

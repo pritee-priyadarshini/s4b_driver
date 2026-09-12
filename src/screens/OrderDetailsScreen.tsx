@@ -17,6 +17,7 @@ import { HeroHeader } from '../components/HeroHeader';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { palette } from '../theme/colors';
 import { hp, normalize, wp } from '../utils/responsive';
+import { formatKgLabel } from '../utils/formatKg';
 import { RootStackParamList } from '../navigation/types';
 import { OrderStatus } from '../types/history';
 
@@ -221,8 +222,8 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
               <AppText variant="caption" style={styles.panelLabel}>
                 Food collected
               </AppText>
-              <AppText variant="bodyBold" style={styles.itemsTotal}>
-                {totalQty} kg
+              <AppText variant="bodySmall" style={styles.itemsTotal}>
+                {formatKgLabel(totalQty)}
               </AppText>
             </View>
 
@@ -234,11 +235,11 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
                   index === order.items.length - 1 && styles.foodRowLast,
                 ]}
               >
-                <AppText variant="body" style={styles.foodName}>
+                <AppText variant="body" style={styles.foodName} numberOfLines={2}>
                   {item.name}
                 </AppText>
-                <AppText variant="bodyBold" style={styles.foodQty}>
-                  {item.qty} kg
+                <AppText variant="bodySmall" style={styles.foodQty}>
+                  {formatKgLabel(item.qty)}
                 </AppText>
               </View>
             ))}
@@ -516,6 +517,10 @@ const styles = StyleSheet.create({
   itemsTotal: {
     textTransform: 'none',
     color: ACCENT,
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(15),
+    lineHeight: normalize(22),
+    flexShrink: 0,
   },
   foodRow: {
     flexDirection: 'row',
@@ -523,6 +528,7 @@ const styles = StyleSheet.create({
     paddingVertical: hp(1.1),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.strokecream,
+    gap: wp(3),
   },
   foodRowLast: {
     borderBottomWidth: 0,
@@ -530,12 +536,19 @@ const styles = StyleSheet.create({
   },
   foodName: {
     flex: 1,
+    flexShrink: 1,
     textTransform: 'none',
-    paddingRight: wp(3),
+    paddingRight: 0,
   },
   foodQty: {
     color: palette.black,
     textTransform: 'none',
+    fontFamily: 'Saveful-SemiBold',
+    fontSize: normalize(15),
+    lineHeight: normalize(22),
+    flexShrink: 0,
+    textAlign: 'right',
+    minWidth: wp(18),
   },
   feedbackRow: {
     flexDirection: 'row',

@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
 import {
   clearAccessToken,
@@ -140,7 +141,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw profileError;
       }
 
-      assertDriverAccount(loginResponse, profile);
+      try {
+        assertDriverAccount(loginResponse, profile);
+      } catch (driverError) {
+        await clearAccessToken();
+        throw driverError;
+      }
 
       const nextDriver = buildAuthDriver(
         profile,
@@ -179,6 +185,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!driver || !accessToken) return;
+
+    // Expo Go cannot register FCM — skip so login never surfaces push errors.
+    if (Constants.appOwnership === 'expo') return;
 
     const notificationsStore = useNotificationsStore.getState();
     void notificationsStore.registerDeviceToken({ prompt: true });
