@@ -23,6 +23,7 @@ type AcceptPickupResponse = {
     lng?: number | null;
     pickupFromTime?: string | null;
     pickupByTime?: string | null;
+    collectionNotes?: string | null;
   };
 };
 

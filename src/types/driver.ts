@@ -55,6 +55,7 @@ export type ApiDriverPickup = {
     pickupByTime?: string | null;
     bestBefore?: string | null;
     totalQtyKg?: number | null;
+    collectionNotes?: string | null;
     allergens?: string | null;
     needsRefrigeration?: boolean;
     needsAmbient?: boolean;

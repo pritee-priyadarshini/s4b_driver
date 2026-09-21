@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
+import { CollectionNotesCard } from '../components/CollectionNotesCard';
 import { HeroHeader } from '../components/HeroHeader';
 import { useTransparentStatusBar } from '../hooks/useTransparentStatusBar';
 import { palette } from '../theme/colors';
@@ -217,6 +218,8 @@ export function OrderDetailsScreen({ route, navigation }: Props) {
             </View>
           </View>
 
+          <CollectionNotesCard notes={order.collectionNotes} style={styles.collectionNotes} />
+
           <View style={styles.panel}>
             <View style={styles.itemsHead}>
               <AppText variant="caption" style={styles.panelLabel}>
@@ -386,6 +389,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp(4),
     marginTop: -hp(1.6),
     gap: hp(1.4),
+  },
+  collectionNotes: {
+    marginHorizontal: 0,
   },
   panel: {
     backgroundColor: palette.white,

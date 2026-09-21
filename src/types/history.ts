@@ -26,6 +26,7 @@ export type HistoryOrder = {
     address: string;
   };
   items: HistoryOrderItem[];
+  collectionNotes?: string | null;
   /** Charity/farmer rating of the driver (0 if not yet rated). */
   driverRating: number;
   /** Food business rating of the driver (0 if not yet rated). */

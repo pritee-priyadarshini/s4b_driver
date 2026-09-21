@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppText } from '../components/AppText';
 import { AppBottomSheet } from '../components/AppBottomSheet';
+import { CollectionNotesCard } from '../components/CollectionNotesCard';
 import { Screen } from '../components/Screen';
 import { HeroHeader } from '../components/HeroHeader';
 import { CharityLogoAvatar } from '../components/CharityLogoAvatar';
@@ -685,6 +686,8 @@ export function DashboardScreen() {
             </AppText>
           ) : null}
 
+          <CollectionNotesCard notes={item.collectionNotes} style={styles.collectionNotes} />
+
           {item.contact ? (
             <View style={styles.contactRow}>
               <Pressable
@@ -797,6 +800,7 @@ export function DashboardScreen() {
         title={foodModal?.title}
         subtitle="Items to collect from restaurant"
       >
+        <CollectionNotesCard notes={foodModal?.collectionNotes} style={styles.collectionNotesSheet} />
         {foodModal?.items.map((food, index) => (
           <View key={`${food.name}-${index}`} style={styles.foodRow}>
             <AppText variant="body" style={styles.foodName} numberOfLines={2}>
@@ -1005,6 +1009,13 @@ export function DashboardScreen() {
                   </AppText>
                 </View>
               </View>
+
+              {tripMapConfig.destinationType !== 'charity' ? (
+                <CollectionNotesCard
+                  notes={activeTrip.collectionNotes}
+                  style={styles.collectionNotesTrip}
+                />
+              ) : null}
 
               <Pressable style={styles.tripNavRow} onPress={openExternalNav}>
                 <View style={styles.tripNavIcon}>
@@ -1322,6 +1333,15 @@ const styles = StyleSheet.create({
   storageText: {
     textTransform: 'none',
     color: palette.stone,
+  },
+  collectionNotes: {
+    marginTop: hp(1),
+  },
+  collectionNotesSheet: {
+    marginBottom: hp(1.2),
+  },
+  collectionNotesTrip: {
+    marginBottom: hp(1.2),
   },
   contactRow: {
     flexDirection: 'row',

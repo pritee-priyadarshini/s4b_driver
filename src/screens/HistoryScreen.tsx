@@ -17,6 +17,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { AppBottomSheet } from '../components/AppBottomSheet';
+import { CollectionNotesCard } from '../components/CollectionNotesCard';
 import { HeroHeader } from '../components/HeroHeader';
 import { CharityLogoAvatar } from '../components/CharityLogoAvatar';
 import { Skeleton } from '../components/Skeleton';
@@ -339,6 +340,7 @@ export function HistoryScreen({ navigation }: Props) {
         title={foodModal?.restaurant.name}
         subtitle={foodModal ? `${foodModal.orderId} · Items collected` : undefined}
       >
+        <CollectionNotesCard notes={foodModal?.collectionNotes} style={styles.collectionNotesSheet} />
         {foodModal?.items.map((food, index) => (
           <View key={`${food.name}-${index}`} style={styles.foodRow}>
             <AppText variant="body" style={styles.foodName} numberOfLines={2}>
@@ -635,6 +637,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.strokecream,
     gap: wp(3),
+  },
+  collectionNotesSheet: {
+    marginBottom: hp(1.2),
   },
   foodName: {
     flex: 1,

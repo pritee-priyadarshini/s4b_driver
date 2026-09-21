@@ -22,6 +22,7 @@ export type DashboardPickup = {
   date: string;
   time: string;
   storage: string;
+  collectionNotes?: string | null;
   latitude: number;
   longitude: number;
   phase: TripPhase;
@@ -166,6 +167,7 @@ export function mapApiPickupToDashboard(
     date: formatDate(pickup.listing.pickupFromTime ?? pickup.acceptedAt),
     time: formatPickupWindow(pickup.listing.pickupFromTime, pickup.listing.pickupByTime),
     storage: buildStorageLabel(pickup),
+    collectionNotes: pickup.listing.collectionNotes?.trim() || null,
     latitude: lat,
     longitude: lng,
     phase: statusToTripPhase(pickup.status),
@@ -212,6 +214,7 @@ export function mapApiPickupToHistory(
         '',
     },
     items: mapClaimItems(pickup),
+    collectionNotes: pickup.listing.collectionNotes?.trim() || null,
     // Ratings of the driver from charity and food business (not the driver's own rating).
     driverRating: pickup.charityDriverRating ?? 0,
     restaurantRating: pickup.restaurantDriverRating ?? 0,
