@@ -252,9 +252,10 @@ async function setupAndroidNotificationChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   const Notifications = getNotificationsModule();
   await Notifications.setNotificationChannelAsync('default', {
-    name: 'Default',
-    importance: Notifications.AndroidImportance.MAX,
+    name: 'General',
+    importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
+    sound: 'default',
   });
   await ensurePickupAlertChannel();
   pushLog('Android notification channels ready (default + pickup_alerts)');
