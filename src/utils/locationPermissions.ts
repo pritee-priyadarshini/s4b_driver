@@ -51,7 +51,7 @@ function confirmBackgroundLocationRationale(): Promise<boolean> {
   const android11Plus = Platform.OS === 'android' && androidApi >= 30;
 
   let message =
-    'Saveful Driver uses continuous location while your shift is live to keep your route updated and share your position with your charity - even when the app is in the background. Tracking stops when you end your shift.';
+    'Saveful Driver collects location data to share your live position with your charity and keep your pickup route updated while your shift is live, even when the app is closed or not in use. Tracking stops when you end your shift.';
 
   if (Platform.OS === 'ios') {
     message +=
@@ -73,7 +73,7 @@ function confirmBackgroundLocationRationale(): Promise<boolean> {
   }
 
   return new Promise((resolve) => {
-    showAppConfirm('Keep location on while live', message, {
+    showAppConfirm('Location access while live', message, {
       confirmText: 'Continue',
       cancelText: 'While using app only',
       onConfirm: () => resolve(true),
