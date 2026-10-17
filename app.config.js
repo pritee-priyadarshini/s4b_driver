@@ -106,7 +106,6 @@ export default {
     version: '1.0.0',
     orientation: 'portrait',
     userInterfaceStyle: 'light',
-    scheme: 'saveful_driver_app',
     splash: {
       image: './assets/intro/logo.png',
       resizeMode: 'contain',
@@ -117,7 +116,7 @@ export default {
 
     ios: {
       supportsTablet: false,
-      isTabletOnly: false,
+      requireFullScreen: true,
       icon: './assets/intro/Saveful-for-Business-logo.png',
       bundleIdentifier: 'com.saveful.driver.app',
       ...(iosGoogleServicesFile && { googleServicesFile: iosGoogleServicesFile }),
@@ -126,8 +125,6 @@ export default {
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        // Phone only — do not offer or run as an iPad app.
-        UIDeviceFamily: [1],
         // location is also added by expo-location; keep remote-notification for FCM.
         UIBackgroundModes: ['remote-notification', 'location'],
         NSLocationWhenInUseUsageDescription:
